@@ -1,0 +1,2 @@
+llama-cpp-python=0.1.78
+langchain=0.1.1
