@@ -7,4 +7,4 @@
 *.jpeg
 # Datasets
 dataset/
-
+# *.json # uncomment this some time soon!
