@@ -57,7 +57,6 @@ if __name__ == '__main__':
     )
     data3 = loader3.load()
     print(f'data3: {data3}')
-    pass
 
 # Other possible jq_schema:
 # JSON        -> [{"text": ...}, {"text": ...}, {"text": ...}]
