@@ -1,10 +1,10 @@
 .idea
-.csv
-.zip
-.xl
-.png
-.jpg
-.jpeg
+*.csv
+*.zip
+*.xl
+*.png
+*.jpg
+*.jpeg
 # Datasets
 dataset/
 
