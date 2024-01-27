@@ -8,3 +8,5 @@
 # Datasets
 dataset/
 # *.json # uncomment this some time soon!
+
+training10b.json # not added to index but here as a safety net
