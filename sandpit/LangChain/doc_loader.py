@@ -4,6 +4,13 @@ from pathlib import Path
 from pprint import pprint
 import pandas as pd
 
+# `sample.json` is a small practice json file but has the same nested structure as the BioASQ json files
+# (i.e. {key: value} where the value is a list containing all the data of interest)
+
+# {"person":
+#      [{"name": "John", "age": 30, "car": null},
+#       {"age": 20, "car": "ferrari", "name": "Xian"}]}
+
 
 if __name__ == '__main__':
     file_path = 'docs/sample.json'
