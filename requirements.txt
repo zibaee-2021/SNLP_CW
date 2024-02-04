@@ -1,12 +1,15 @@
 llama-cpp-python=0.1.78
 langchain=0.1.1
 
-# Note: I ran `conda update langchain` and I now have the following (which so far is stable):
-# Name                    Version                   Build  Channel
-# langchain                 0.1.4              pyhd8ed1ab_0    conda-forge
-# langchain-community       0.0.15             pyhd8ed1ab_0    conda-forge
-# langchain-core            0.1.16             pyhd8ed1ab_0    conda-forge
+# Note: `conda install jq` gives version 1.7 by default.
+# Trying to run JSONLoader with this threw error message that 'jq not installed').
+# `pip install jq` did work, and this installed version 1.6 by default.
 
-# Also note: `conda install jq` gives version 1.7. Trying to run JSONLoader with this threw error
-# message that jq not even installed).
-# `pip install jq` did work ok. And this installed version 1.6.
+jq==1.60
+datasets~=2.16.1
+transformers~=4.37.2
+pandas~=2.2.0
+nltk~=3.8.1
+rouge~=1.0.1
+langchain~=0.1.4
+numpy~=1.26.3
