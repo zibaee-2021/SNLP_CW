@@ -5,7 +5,7 @@ langchain=0.1.1
 # Trying to run JSONLoader with this threw error message that 'jq not installed').
 # `pip install jq` did work, and this installed version 1.6 by default.
 
-jq==1.60
+jq==1.6.0
 datasets~=2.16.1
 transformers~=4.37.2
 pandas~=2.2.0
@@ -13,3 +13,4 @@ nltk~=3.8.1
 rouge~=1.0.1
 langchain~=0.1.4
 numpy~=1.26.3
+scikit-learn~=1.4.0
