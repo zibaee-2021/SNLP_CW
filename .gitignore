@@ -9,3 +9,4 @@
 # Datasets
 dataset/
 *.json
+*notes*
