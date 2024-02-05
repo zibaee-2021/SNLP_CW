@@ -48,6 +48,15 @@ def read_dict(input_string):
     else:
         return 0, None
 
+
+def read_answer(input_string):
+    pattern = re.compile(r'"answer": "([A-Z])"')
+
+    match = pattern.search(input_string)
+
+    return match.group(1) if match else None
+
+
 if __name__ == '__main__':
     # Load the llama model
     # model = load_llama("../llama.cpp/models/llama-2-7b-chat.Q4_K_M.gguf")
@@ -60,9 +69,11 @@ if __name__ == '__main__':
     # Open the file and load its content into a dictionary
     df = pd.read_json(json_file_path, lines=True)
 
+    # Print all option choice in the MCQ dataset
     print('Options: ', df['answer'].unique())
 
-    print('Cuda is available: ', torch.cuda.is_available())
+    # Print if Cuda is available
+    # print('Cuda is available: ', torch.cuda.is_available())
 
     # Set the schema for structured output
     response_schemas = [
@@ -76,10 +87,7 @@ if __name__ == '__main__':
 
     prompt_template = PromptTemplate(input_variables=['text', 'prompt', 'question_type'],
                                      partial_variables={"format_instructions": format_instructions},
-                                     template='{prompt} about {question_type}: {text} '
-                                              'Provide the answer as one capital letter. {format_instructions}.')
-
-    retry_parser = RetryOutputParser.from_llm(parser=output_parser, llm=model)
+                                     template='{prompt} about {question_type}. {text} {format_instructions}.')
 
     n_true, n_false, n_invalid = 0, 0, 0
 
@@ -95,46 +103,41 @@ if __name__ == '__main__':
 
         print('\nGolden answer: ', row['answer'])
 
+        # Construct the final prompt for the question
         final_prompt = prompt_template.format(text=text,
                                               prompt=prompt,
                                               question_type=question_type,
                                               format_instructions=format_instructions)
 
+        # Chain the final prompt to the LLM model
         output = model(final_prompt)
+        print(output)
 
-        i, captured_dict = read_dict(output)
-        print(i, captured_dict)
+        # Parse the LLM output to extract the answer using Regular Expression
+        captured_answer = read_answer(output)
 
-        if captured_dict:
-            '''
-            if i == 1:
-                try:
-                    dict = json.loads(captured_dict)
-                except json.JSONDecodeError as e:
-                    print(f"\nError decoding Dict with json: {captured_dict}")
-                    n_invalid += 1
-                    continue
-            '''
-            if i == 1 or i == 2:
-                try:
-                    dict = ast.literal_eval(captured_dict)
-                except (ValueError, SyntaxError) as e:
-                    print(f"\nError decoding Dict with text: {captured_dict}")
-                    n_invalid += 1
-                    continue
-            else:
-                raise NotImplementedError
-
-            print(f"\nCorrectly captured json dictionary: {dict}")
-
-            if dict['answer'] == row['answer']:
+        if captured_answer:
+            # True Answer
+            if captured_answer == row['answer']:
+                print(f"\nCaptured True Answer: {captured_answer}")
                 n_true += 1
+            # False Answer
             else:
+                print(f"\nCaptured False Answer: {captured_answer}")
                 n_false += 1
         else:
-            print(f"\nNot captured json with text: {output}")
+            # Invalid / Not Captured
+            print(f"\nInvalid / Not Captured Answer.")
             n_invalid += 1
 
         print('------------------------------------------------------------')
 
-        print(n_true, n_false, n_invalid)
+        # Print a count on true and false answers
+        print('True: ', n_true, 'False: ', n_false, 'Invalid: ', n_invalid)
+
+
+    # Calculate the final evaluation statistics and print the result
+    n_total = n_true + n_false + n_invalid
+
+    print('True Accuracy: %.3f; False: %.3f; Invalid: %.3f.' %
+          (n_true / n_total, n_false / n_total, n_invalid / n_total))
