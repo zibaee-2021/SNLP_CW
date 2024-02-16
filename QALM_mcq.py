@@ -1,15 +1,10 @@
-from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from langchain.output_parsers import StructuredOutputParser, ResponseSchema, RetryOutputParser
+from langchain.output_parsers import StructuredOutputParser, ResponseSchema
+from langchain_core.runnables import RunnablePassthrough
 from langchain_community.llms import LlamaCpp
-from langchain.callbacks.manager import CallbackManager
-from langchain.callbacks.streaming_stdout import(
-StreamingStdOutCallbackHandler
-)
-
-from langchain_core.runnables import RunnableLambda, RunnableParallel
-
 from langchain_openai import ChatOpenAI
+
+from operator import itemgetter
 
 from tqdm import tqdm
 
@@ -18,6 +13,9 @@ import pandas as pd
 import json
 import ast
 import re
+
+from RAG import JSONLoader, RAG_DB_setup
+
 
 def load_llama(model_path):
     llm = LlamaCpp(
@@ -34,6 +32,9 @@ def load_llama(model_path):
     )
 
     return llm
+
+def format_docs(docs):
+    return "\n".join(doc.metadata['title'] for doc in docs)
 
 def read_dict(input_string):
     # Define a regular expression to capture content between curly braces
@@ -58,11 +59,6 @@ def read_answer(input_string):
 
 
 if __name__ == '__main__':
-    # Load the llama model
-    # model = load_llama("../llama.cpp/models/llama-2-7b-chat.Q4_K_M.gguf")
-    model = load_llama("../llama.cpp/models/llama-2-13b-chat.Q4_K_M.gguf")
-    # model = ChatOpenAI(temperature=0)
-
     # Assuming 'data.json' is your JSON file
     json_file_path = 'dataset/QALM/test/mcq/bioasq_mcq_test.jsonl'
 
@@ -70,10 +66,30 @@ if __name__ == '__main__':
     df = pd.read_json(json_file_path, lines=True)
 
     # Print all option choice in the MCQ dataset
-    print('Options: ', df['answer'].unique())
+    print('Loaded all questions. Options: ', df['answer'].unique())
 
-    # Print if Cuda is available
-    # print('Cuda is available: ', torch.cuda.is_available())
+    # ------------------------------------------------------------------------------------------------------------------
+
+    loader = JSONLoader(
+        file_path='dataset/pubmed_2023.json',
+        # jq_schema='.[]',
+        content_key='article_abstract'
+        # metadata_func=metadata_func
+    )
+    data = loader.load()
+
+    print(f"{len(data)} pubmed articles are loaded!")
+
+    db = RAG_DB_setup(data)
+
+    retriever = db.as_retriever(k=2)
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    # Load the llama model
+    # model = load_llama("../llama.cpp/models/llama-2-7b-chat.Q4_K_M.gguf")
+    model = load_llama("../llama.cpp/models/llama-2-13b-chat.Q4_K_M.gguf")
+    # model = ChatOpenAI(temperature=0)
 
     # Set the schema for structured output
     response_schemas = [
@@ -85,33 +101,50 @@ if __name__ == '__main__':
     output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
     format_instructions = output_parser.get_format_instructions()
 
-    prompt_template = PromptTemplate(input_variables=['text', 'prompt', 'question_type'],
-                                     partial_variables={"format_instructions": format_instructions},
-                                     template='{prompt} about {question_type}. {text} {format_instructions}.')
+    prompt_template = PromptTemplate.from_template("""{format_instructions}. {prompt} about {question_type} based only 
+                                                   on the following context: {docs}. {question}""")
 
     n_true, n_false, n_invalid = 0, 0, 0
 
+    # ------------------------------------------------------------------------------------------------------------------
+
     # Go through the questions in the dataframe
     for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing Rows"):
-        text = row['text']
+        question = row['text']
         prompt = row['prompt']
         question_type = row['question_type']
+        few_shot_prompt = row['few_shot_prompt']
 
         print('------------------------------------------------------------')
 
-        print(f'{prompt} about {question_type}: {text}')
+        print(f'{prompt} about {question_type}: {question}')
 
         print('\nGolden answer: ', row['answer'])
 
-        # Construct the final prompt for the question
-        final_prompt = prompt_template.format(text=text,
-                                              prompt=prompt,
-                                              question_type=question_type,
-                                              format_instructions=format_instructions)
+        rag_doc = retriever.invoke(question)
+        print('Retrieved Docs: ', format_docs(rag_doc))
 
         # Chain the final prompt to the LLM model
-        output = model(final_prompt)
+        rag_chain = (
+                {
+                    "docs": itemgetter("question") | retriever,
+                    "question": itemgetter("question"),
+                    "prompt": itemgetter("prompt"),
+                    "question_type": itemgetter("question_type"),
+                    "format_instructions": itemgetter("format_instructions")
+                }
+                | prompt_template
+                | model
+        )
+
+        output = rag_chain.invoke({"question": question,
+                                   "prompt": prompt,
+                                   "question_type": question_type,
+                                   "format_instructions": format_instructions})
+
         print(output)
+
+        print('------------------------------------------------------------')
 
         # Parse the LLM output to extract the answer using Regular Expression
         captured_answer = read_answer(output)
@@ -130,11 +163,8 @@ if __name__ == '__main__':
             print(f"\nInvalid / Not Captured Answer.")
             n_invalid += 1
 
-        print('------------------------------------------------------------')
-
         # Print a count on true and false answers
         print('True: ', n_true, 'False: ', n_false, 'Invalid: ', n_invalid)
-
 
     # Calculate the final evaluation statistics and print the result
     n_total = n_true + n_false + n_invalid
