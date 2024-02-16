@@ -8,5 +8,7 @@
 
 # Datasets
 dataset/
+refs/
+
 *.json
 *notes*
