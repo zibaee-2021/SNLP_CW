@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from langchain.docstore.document import Document
 from langchain.document_loaders.base import BaseLoader
@@ -8,6 +8,7 @@ from langchain.document_loaders.base import BaseLoader
 from langchain.text_splitter import TokenTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+
 
 class JSONLoader(BaseLoader):
     def __init__(
@@ -21,52 +22,64 @@ class JSONLoader(BaseLoader):
     def load(self) -> List[Document]:
         """Load and return documents from the JSON file."""
 
-        docs = []
+        documents = []
         # Load JSON file
         with open(self.file_path) as file:
             data = json.load(file)
 
             # Iterate through 'pages'
             for record in data:
-                metadata = {}
+                metadata = {"year": record.get("pub_date").get('year'),
+                            "month": record.get("pub_date").get('month'),
+                            "day": record.get("pub_date").get('day'),
+                            "title": record.get("article_title")}
 
-                metadata["year"] = record.get("pub_date").get('year')
-                metadata["month"] = record.get("pub_date").get('month')
-                metadata["day"] = record.get("pub_date").get('day')
-                metadata["title"] = record.get("article_title")
+                documents.append(Document(page_content=record.get(self._content_key), metadata=metadata))
 
-                docs.append(Document(page_content=record.get(self._content_key), metadata=metadata))
-        return docs
+        return documents
 
-def RAG_DB_setup(data):
-    text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
-    chunks = text_splitter.split_documents(data)
 
-    modelPath = "intfloat/e5-large-unsupervised"
-    embeddings = HuggingFaceEmbeddings(
-        model_name=modelPath,
-        model_kwargs={'device': 'cuda'},
-        encode_kwargs={'normalize_embeddings': False}
+def load_document(document_file_path):
+    loader = JSONLoader(
+        file_path=document_file_path,
+        content_key='article_abstract'
     )
 
-    # Using faiss index
-    db = FAISS.from_documents(chunks, embeddings)
+    return loader.load()
 
-    return db
+
+class RAG:
+    def __init__(self, document_file_path):
+        self.data = load_document(document_file_path)
+
+        self.database = self.load_e5_database()
+
+    def load_e5_database(self):
+        text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
+        chunks = text_splitter.split_documents(self.data)
+
+        modelPath = "intfloat/e5-large-unsupervised"
+
+        embeddings = HuggingFaceEmbeddings(
+            model_name=modelPath,
+            model_kwargs={'device': 'cuda'},
+            encode_kwargs={'normalize_embeddings': False}
+        )
+
+        # Using faiss index
+        db = FAISS.from_documents(chunks, embeddings)
+
+        return db
+
+    def retrieve_document(self, query):
+        return self.database.similarity_search(query)
+
+    def get_retriever(self, k):
+        return self.database.as_retriever(k=k)
+
 
 if __name__ == '__main__':
-    loader = JSONLoader(
-        file_path='dataset/pubmed_december-2023.json',
-        # jq_schema='.[]',
-        content_key='article_abstract'
-        # metadata_func=metadata_func
-    )
-    data = loader.load()
+    rag_pipeline = RAG('dataset/pubmed_december-2023.json')
 
-    print(f"{len(data)} pubmed articles are loaded!")
-
-    db = RAG_DB_setup(data)
-
-    query = "What is the most common neurological disease published in December 2023"
-    docs = db.similarity_search(query)
+    docs = rag_pipeline.retrieve_document("What is the most common neurological disease published in December 2023")
     print(docs)
