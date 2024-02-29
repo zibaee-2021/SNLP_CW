@@ -1,0 +1,120 @@
+The below text is copy-pasted from 'Evaluation for BioASQ Task B document in Notion'
+
+**Phase A (annotate questions, retrieve relevant articles, snippets, triples):**
+
+1. Use terminology to annotate questions (machine is try to imitate the process that it is try to understand the question)
+2. Retrieve relevant articles, text snippets and RDF triples based on terminologies
+    （quick note here: The system responses of Phase A will be automatically compared against golden responses
+    constructed by the BIOASQ team of biomedical experts)
+
+**Phase B (find and report ‘exact’ and ‘ideal’ answers):**
+
+1. Use the questions and golden responses from Phase A as the input
+2. 'exact answers': e.g., named entities for factoid questions, yes/no for boolean questions
+3. 'ideal answers': paragraph-sized summaries
+    (quick note here: System responses are compared automatically against golden 'exact' and 'ideal' answers
+    constructed by biomedical experts, with manual evaluation of all 'ideal' answers.)
+
+**Evaluation process and measures for Phase A：**
+
+Phase A involves participants receiving English questions and returning specific information for each question:
+
+1. **Concepts**: Participants provide up to 10 relevant concepts (ordered by decreasing confidence) for each question.
+2. **Articles**: Participants provide up to 10 relevant articles (ordered by decreasing confidence) for each question.
+3. **Text Snippets**: Participants provide up to 10 relevant text snippets (ordered by decreasing confidence,
+    and identified by article and character offsets) extracted from the returned articles for each question.
+4. **RDF Triples**: Participants provide up to 10 relevant RDF triples (ordered by decreasing confidence) for each
+    question.
+
+After participants submit responses, BIOASQ experts review system outputs and construct correct sets of concepts,
+articles, snippets, and triples. They augment gold sets with any correct items missed by experts but retrieved by systems.
+
+
+Evaluation:
+
+- Mean Average Precision (MAP) and Geometric Mean Average Precision (GMAP) are used to evaluate the lists of returned
+    concepts, articles, and triples.
+- Mean precision, mean recall, and mean F-measure are also computed.
+- Official scores for concepts, articles, and triples are based on MAP.
+- Snippet evaluation in Phase A is based on mean F-measure since BioASQ9.
+
+**Unordered retrieval measures:**
+
+Mean precision (P), recall (R), and F-measure (Fβ) assess system performance by comparing retrieved items to golden ones.
+
+Precision measures the ratio of correct retrievals to total retrievals,
+recall measures correct retrievals against all relevant golden items,
+and Fβ combines precision and recall, with β weighting precision's importance.
+
+Mean precision, recall, and F-measure are computed by averaging across all queries.
+These metrics evaluate system performance for concepts, articles, snippets, and triples.
+
+Snippet evaluation considers overlaps between returned and golden snippets,
+adjusting precision (Psnip) and recall (Rsnip) calculations accordingly.
+
+**Ordered retrieval measures:**
+
+MAP and GMAP are used to evaluate system performance.
+
+MAP calculates the average precision of ordered lists of returned items,
+considering relevance and a limit of ten elements per question.
+
+GMAP, similar to MAP but using geometric mean, emphasizes improvements in low-performing queries.
+
+Both metrics handle cases where precision equals zero by adding a small number (ε).
+Systems receive scores for concepts, articles, snippets, and triples returned for all questions.
+Official scores for Phase A are based on MAP.
+
+**Evaluation process and measures for Phase B**
+
+Phase B involves providing participants with the same questions as in Phase A,
+along with golden lists of articles and snippets.
+Systems must return paragraph-sized "ideal" answers and "exact" answers for yes/no, factoid, and list questions.
+
+Question Type:
+
+1. yes/no: both "ideal" and "exact"
+2. factoid: both "ideal" and "exact"
+3. list: both "ideal" and "exact"
+4. summary: no "exact", only "ideal"
+
+**Evaluation of "exact" answers:**
+
+1. Evaluating yes/no questions:
+    - Systems must provide either 'yes' or 'no' answers, compared against golden answers.
+    - Accuracy (Acc) is computed as the ratio of correctly answered questions to the total number of yes/no questions.
+    - Precision (P), recall (R), and  macro-averaged F-measure (maF1) are used as official measures,
+        calculated separately for 'yes' and 'no' answers.
+    - maF1 is the official measure for yes/no questions.
+
+2. Evaluating factoid questions:
+    - Systems return up to 5 entity names ordered by confidence.
+    - Strict accuracy (SAcc) considers if the golden entity name or synonym is the first element in the returned list,
+        while lenient accuracy (LAcc) allows for inclusion anywhere in the list.
+    - Mean reciprocal rank (MRR) is the official measure, rewarding systems that include golden responses higher
+        in the returned lists.
+
+3. Evaluating list questions:
+    - Systems return lists of entity names, compared against golden lists.
+    - Precision (P), recall (R), and F-measure (F1) are computed,
+        considering entities mentioned in both the returned and golden lists.
+    - Mean F-measure is the official measure for list questions.
+
+**Evaluation of "ideal" answers:**
+
+1. Manual Evaluation of Ideal Answers:
+    - Questions are categorized by difficulty based on Phase A performance.
+    - The BIOASQ team evaluates a sample of questions, considering information recall, precision, repetition,
+        and readability.
+    - An inter-annotator agreement is measured by multiple experts evaluating the same answers.
+
+2. Automatic Evaluation of Ideal Answers:
+    - ROUGE, an automatic evaluation tool, assesses the overlap between system-generated summaries and reference
+        summaries.
+    - ROUGE-N, ROUGE-S, and ROUGE-SU4 are utilized, focusing on word n-grams and skip bigrams.
+    - Various reference summaries are considered, including golden ideal answers, correct snippets, RDF triples,
+        and system-generated answers.
+
+3. Exploration of Additional Measures:
+    - The potential use of n-gram graphs, measures independent of reference summaries, or combinations of measures
+        is considered for future challenges.
