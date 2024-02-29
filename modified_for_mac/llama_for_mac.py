@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # Replace with the .gguf model file in your repository
     # Do not put your model file under the SNLP_CW repo unless you add it to .gitignore
-    your_model_path = '../llama_cpp/models/llama-2-7b-chat.Q2_K.gguf'
+    your_model_path = '../../llama_cpp/models/llama-2-7b-chat.Q2_K.gguf'
 
     if not os.path.exists(your_model_path):
         sys.exit('Your pretrained model (gguf) is not in the expected location.')
