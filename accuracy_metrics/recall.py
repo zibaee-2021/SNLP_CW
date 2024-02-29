@@ -1,7 +1,7 @@
 """
 Compute recall.
 
-For BioASQ-QA task a,
+For BioASQ.py-QA task a,
 measure the fraction of relevant documents that are successfully retrieved.
 
 Recall (or Sensitivity) measures the fraction of all relevant instances that are retrieved.

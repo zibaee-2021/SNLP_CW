@@ -1,7 +1,7 @@
 """
 Compute Precision at k.
 
-For BioASQ-QA task a,
+For BioASQ.py-QA task a,
 measure the precision of the first k results returned by the system.
 
 """

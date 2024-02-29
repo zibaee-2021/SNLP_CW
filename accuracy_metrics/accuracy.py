@@ -1,7 +1,7 @@
 """
 Compute accuracy.
 
-For BioASQ-QA task b, yes/no questions,
+For BioASQ.py-QA task b, yes/no questions,
 calculate simple percentage of questions for which the system provides the correct answer.
 
 

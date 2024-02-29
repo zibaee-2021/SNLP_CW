@@ -1,7 +1,7 @@
 """
 Compute Mean Reciprocal Rank.
 
-For BioASQ-QA task b, factoid questions,
+For BioASQ.py-QA task b, factoid questions,
 evaluate the ranking of the correct answers provided by the system.
 
 Mean Reciprocal Rank (MRR) is a statistical measure used to evaluate the performance of a system that returns
