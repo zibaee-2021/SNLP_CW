@@ -1,7 +1,7 @@
 """
 Compute ROUGE metric.
 
-For BioASQ-QA task b, summary questions,
+For Datasets.py-QA task b, summary questions,
 ROUGE (and BLEU) metrics are used to evaluate the quality of the summaries provided by the systems.
 They measure the overlap between the words in the system-generated summaries
 and a set of reference summaries.
