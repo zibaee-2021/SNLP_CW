@@ -1,7 +1,7 @@
 """
 Compute Mean Average Precision.
 
-For BioASQ.py task a,
+For Datasets.py task a,
 evaluate the quality of the ranked list of documents returned by a system.
 It takes into account both the order of the documents and the precision at each cut-off point in the list.
 

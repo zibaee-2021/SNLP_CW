@@ -9,7 +9,7 @@ os.environ["OPENAI_API_KEY"] = 'sk-rR2ceIgtDLX1Pn9dUMJIT3BlbkFJIJ4NSEjL9iwN67GZe
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
-class Llama:
+class Llama2:
     def __init__(self, model_path):
         self.model = LlamaCpp(
             model_path=model_path,

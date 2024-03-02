@@ -1,7 +1,7 @@
 """
 Compute precision, recall and F1-score.
 
-For BioASQ.py-QA task b, for list questions,
+For Datasets.py-QA task b, for list questions,
 these metrics are used to evaluate the correctness and completeness of the lists provided by the systems.
 
 

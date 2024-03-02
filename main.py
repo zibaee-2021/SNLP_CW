@@ -6,37 +6,97 @@ from langchain_core import exceptions
 from operator import itemgetter
 from tqdm import tqdm
 
-import pandas as pd
+import argparse
+import csv
 
 from RAG import RAG
-from LLM import Llama, GPT
+from LLM import Llama2, GPT
+from Datasets import Question, QALM_mcq, BioASQ
 
-WITH_RAG = True
+
+class PromptLibrary:
+    def __init__(self, prompt_template_csv_file):
+        self.prompt_template_dict = []
+
+        with open(prompt_template_csv_file, 'r', newline='') as csv_file:
+            reader = csv.DictReader(csv_file)
+            for dict in reader:
+                self.prompt_template_dict.append(dict)
+
+    def get_prompt_template(self, dataset, question_type, with_rag):
+        for dict in self.prompt_template_dict:
+            if dict['Dataset'] == dataset \
+                    and dict['Question_Type'] == question_type \
+                    and dict['RAG'] == str(with_rag):
+                return PromptTemplate.from_template(dict['prompt_template'])
+
+        raise ModuleNotFoundError
 
 
 def format_docs(docs):
     return "\n".join(doc.metadata['title'] for doc in docs)
 
 
+def get_questions(dataset, question_type):
+    if dataset == 'QALM_mcq':
+        questions = QALM_mcq(['dataset/QALM/test/mcq/bioasq_mcq_test.jsonl']).questions
+    elif dataset == 'BioASQ':
+        data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
+                       'dataset/Task11BGoldenEnriched/11B2_golden.json',
+                       'dataset/Task11BGoldenEnriched/11B3_golden.json',
+                       'dataset/Task11BGoldenEnriched/11B4_golden.json'])
+
+        if question_type == 'yesno':
+            questions = data.get_type_questions('yesno')
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
+
+    return questions
+
+
+def get_llm_model(llm_model):
+    if llm_model == 'Llama2':
+        model = Llama2('../llama.cpp/models/llama-2-13b-chat.Q4_K_M.gguf').model
+    elif llm_model == 'OpenAI':
+        model = GPT(temp=0).model
+    else:
+        raise NotImplementedError
+
+    return model
+
+
 if __name__ == '__main__':
-    # Assuming 'data.json' is your JSON file
-    json_file_path = 'dataset/QALM/test/mcq/bioasq_mcq_test.jsonl'
+    parser = argparse.ArgumentParser(description='Biomedical Question Answering')
 
-    # Open the file and load its content into a dictionary
-    df = pd.read_json(json_file_path, lines=True)
+    parser.add_argument('-d', '--dataset', default='QALM_mcq', choices=['QALM_mcq', 'BioASQ'], type=str,
+                        help='Biomedical Question-Answering Dataset')
+    parser.add_argument('-q', '--question_type', default='mcq', choices=['mcq', 'yesno'], type=str,
+                        help='Specified Question Type in the QA Dataset')
+    parser.add_argument('-m', '--llm_model', default='OpenAI', choices=['OpenAI', 'Llama2'], type=str,
+                        help='LLM Model utilized to process context and answer questions')
+    parser.add_argument('--rag', default=False, type=bool, help='If RAG Pipeline is activated')
 
-    # Print all option choice in the MCQ dataset
-    print('Loaded all questions. Options: ', df['answer'].unique())
-
-    # ------------------------------------------------------------------------------------------------------------------
-
-    rag = RAG('refs/pubmed_2020-2023.json')
-
-    retriever = rag.get_retriever(k=2)
+    args = parser.parse_args()
+    print(args)
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    llm = GPT(temp=0).model
+    # Initialize the Questions
+    questions = get_questions(dataset=args.dataset, question_type=args.question_type)
+
+    # Initialize the Model
+    model = get_llm_model(llm_model=args.llm_model)
+
+    # Extract the Prompt Template
+    prompt_lib = PromptLibrary('prompt_template.csv')
+    prompt_template = prompt_lib.get_prompt_template(dataset=args.dataset,
+                                                     question_type=args.question_type,
+                                                     with_rag=args.rag)
+    print(prompt_template)
+
+    # ------------------------------------------------------------------------------------------------------------------
 
     # Set the schema for structured output
     response_schemas = [
@@ -48,22 +108,16 @@ if __name__ == '__main__':
     output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
     format_instructions = output_parser.get_format_instructions()
 
-    if WITH_RAG:
-        prompt_template = PromptTemplate.from_template("""{format_instructions}. {prompt} about {question_type} 
-                                                    based only on the following context: {docs}. {question}""")
+    if args.rag:
+        rag = RAG('refs/pubmed_2020-2023.json')
 
-        input_dict = {"docs": itemgetter("question") | retriever,
+        input_dict = {"docs": itemgetter("question") | rag.get_retriever(k=2),
                       "question": itemgetter("question"),
                       "prompt": itemgetter("prompt"),
-                      "question_type": itemgetter("question_type"),
                       "format_instructions": itemgetter("format_instructions")}
     else:
-        prompt_template = PromptTemplate.from_template("""{format_instructions}. {prompt} about {question_type}. 
-                                                    {question}""")
-
         input_dict = {"question": itemgetter("question"),
                       "prompt": itemgetter("prompt"),
-                      "question_type": itemgetter("question_type"),
                       "format_instructions": itemgetter("format_instructions")}
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -71,26 +125,17 @@ if __name__ == '__main__':
     n_true, n_false, n_invalid = 0, 0, 0
 
     # Go through the questions in the dataframe
-    for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing Rows"):
-        question = row['text']
-        prompt = row['prompt']
-        question_type = row['question_type']
-        few_shot_prompt = row['few_shot_prompt']
-
+    for question in tqdm(questions):
         print('-------------------------------------------------------------------------------------------------------')
 
-        print(f'{prompt} about {question_type}: {question}')
+        print(f'{question.prompt} about: {question.question_body}')
 
-        print('\nGolden answer: ', row['answer'])
+        print('\nGolden answer: ', question.answer)
 
-        rag_doc = retriever.invoke(question)
-        print('Retrieved Docs: ', format_docs(rag_doc))
+        chain = (input_dict | prompt_template | model)
 
-        chain = (input_dict | prompt_template | llm)
-
-        output = chain.invoke({"question": question,
-                               "prompt": prompt,
-                               "question_type": question_type,
+        output = chain.invoke({"question": question.question_body,
+                               "prompt": question.prompt,
                                "format_instructions": format_instructions}).content
 
         print('-------------------------------------------------------------------------------------------------------')
@@ -99,7 +144,7 @@ if __name__ == '__main__':
         try:
             answer = output_parser.invoke(output)
         except exceptions.OutputParserException as e:
-            new_parser = OutputFixingParser.from_llm(parser=output_parser, llm=llm)
+            new_parser = OutputFixingParser.from_llm(parser=output_parser, llm=model)
 
             try:
                 answer = new_parser.parse(output)
@@ -109,7 +154,7 @@ if __name__ == '__main__':
         # Compare the LLM Answer to the Normal One
         if answer['answer'] != 'EXCEPTION':
             # True Answer
-            if answer['answer'][0] == row['answer']:
+            if answer['answer'][0] == question.answer:
                 print(f"\nCaptured True Answer: {answer}")
                 n_true += 1
             # False Answer
