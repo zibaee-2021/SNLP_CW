@@ -1,11 +1,12 @@
+import math
+
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import StructuredOutputParser, ResponseSchema
 from langchain.output_parsers import OutputFixingParser
+from langchain.chains import LLMChain
 from langchain_core import exceptions
 
-from operator import itemgetter
 from tqdm import tqdm
-
 import argparse
 import csv
 
@@ -20,15 +21,15 @@ class PromptLibrary:
 
         with open(prompt_template_csv_file, 'r', newline='') as csv_file:
             reader = csv.DictReader(csv_file)
-            for dict in reader:
-                self.prompt_template_dict.append(dict)
+            for prompt_dict in reader:
+                self.prompt_template_dict.append(prompt_dict)
 
     def get_prompt_template(self, dataset, question_type, with_rag):
-        for dict in self.prompt_template_dict:
-            if dict['Dataset'] == dataset \
-                    and dict['Question_Type'] == question_type \
-                    and dict['RAG'] == str(with_rag):
-                return PromptTemplate.from_template(dict['prompt_template'])
+        for prompt_dict in self.prompt_template_dict:
+            if prompt_dict['Dataset'] == dataset \
+                    and prompt_dict['Question_Type'] == question_type \
+                    and prompt_dict['RAG'] == str(with_rag):
+                return PromptTemplate.from_template(prompt_dict['prompt_template'])
 
         raise ModuleNotFoundError
 
@@ -70,13 +71,13 @@ def get_llm_model(llm_model):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Biomedical Question Answering')
 
-    parser.add_argument('-d', '--dataset', default='QALM_mcq', choices=['QALM_mcq', 'BioASQ'], type=str,
+    parser.add_argument('-d', '--dataset', default='BioASQ', choices=['QALM_mcq', 'BioASQ'], type=str,
                         help='Biomedical Question-Answering Dataset')
-    parser.add_argument('-q', '--question_type', default='mcq', choices=['mcq', 'yesno'], type=str,
+    parser.add_argument('-q', '--question_type', default='yesno', choices=['mcq', 'yesno'], type=str,
                         help='Specified Question Type in the QA Dataset')
     parser.add_argument('-m', '--llm_model', default='OpenAI', choices=['OpenAI', 'Llama2'], type=str,
                         help='LLM Model utilized to process context and answer questions')
-    parser.add_argument('--rag', default=False, type=bool, help='If RAG Pipeline is activated')
+    parser.add_argument('--rag', default=True, type=bool, help='If RAG Pipeline is activated')
 
     args = parser.parse_args()
     print(args)
@@ -94,7 +95,9 @@ if __name__ == '__main__':
     prompt_template = prompt_lib.get_prompt_template(dataset=args.dataset,
                                                      question_type=args.question_type,
                                                      with_rag=args.rag)
-    print(prompt_template)
+
+    # if args.rag:
+    #    rag = RAG('refs/pubmed_2020-2023.json')
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -107,18 +110,7 @@ if __name__ == '__main__':
     # Set the output parser with format instructions
     output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
     format_instructions = output_parser.get_format_instructions()
-
-    if args.rag:
-        rag = RAG('refs/pubmed_2020-2023.json')
-
-        input_dict = {"docs": itemgetter("question") | rag.get_retriever(k=2),
-                      "question": itemgetter("question"),
-                      "prompt": itemgetter("prompt"),
-                      "format_instructions": itemgetter("format_instructions")}
-    else:
-        input_dict = {"question": itemgetter("question"),
-                      "prompt": itemgetter("prompt"),
-                      "format_instructions": itemgetter("format_instructions")}
+    print(format_instructions)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -128,43 +120,43 @@ if __name__ == '__main__':
     for question in tqdm(questions):
         print('-------------------------------------------------------------------------------------------------------')
 
-        print(f'{question.prompt} about: {question.question_body}')
+        print(f'{question.prompt} {question.question_body}')
 
         print('\nGolden answer: ', question.answer)
 
-        chain = (input_dict | prompt_template | model)
+        print('\nGolden refs: ', question.get_golden_refs(num=1))
 
-        output = chain.invoke({"question": question.question_body,
-                               "prompt": question.prompt,
-                               "format_instructions": format_instructions}).content
+        chain = LLMChain(llm=model, prompt=prompt_template, output_parser=output_parser)
 
-        print('-------------------------------------------------------------------------------------------------------')
+        output = chain.invoke(
+            {"question": question.question_body,
+             "prompt": question.prompt,
+             "format_instructions": format_instructions,
+             "docs": question.get_golden_refs(num=10000)
+             }
+        )['text']
 
-        # Use output parser to read the output json dictionary
-        try:
-            answer = output_parser.invoke(output)
-        except exceptions.OutputParserException as e:
-            new_parser = OutputFixingParser.from_llm(parser=output_parser, llm=model)
+        print('\n\nLLM output: ', output)
 
-            try:
-                answer = new_parser.parse(output)
-            except exceptions.OutputParserException as e:
-                answer = {'answer': 'EXCEPTION'}
-
-        # Compare the LLM Answer to the Normal One
-        if answer['answer'] != 'EXCEPTION':
-            # True Answer
-            if answer['answer'][0] == question.answer:
-                print(f"\nCaptured True Answer: {answer}")
-                n_true += 1
-            # False Answer
-            else:
-                print(f"\nCaptured False Answer: {answer}")
-                n_false += 1
+        if args.question_type == 'mcq':
+            answer = output['answer'][0]
+        elif args.question_type == 'yesno':
+            answer = output['answer'].lower()
         else:
+            raise NotImplementedError
+
+        if answer == question.answer:
+            print(f"\nCaptured True Answer: {answer}")
+            n_true += 1
+        else:
+            print(f"\nCaptured False Answer: {answer}")
+            n_false += 1
+
+        '''
             # Invalid / Not Captured
-            print(f"\nInvalid / Not Captured Answer: {answer}")
+            print(f"\nInvalid / Not Captured Answer: {output['answer']}")
             n_invalid += 1
+        '''
 
         # Print a count on true and false answers
         print('True: ', n_true, 'False: ', n_false, 'Invalid: ', n_invalid)
@@ -174,5 +166,7 @@ if __name__ == '__main__':
     # Calculate the final evaluation statistics and print the result
     n_total = n_true + n_false + n_invalid
 
+    print(args)
+    print(prompt_template)
     print('True Accuracy: %.3f; False: %.3f; Invalid: %.3f.' %
           (n_true / n_total, n_false / n_total, n_invalid / n_total))

@@ -1,3 +1,4 @@
+from itertools import islice
 import json
 
 
@@ -9,6 +10,12 @@ class Question:
         self.prompt = prompt
         self.docs = docs
         self.refs = refs
+
+    def get_golden_refs(self, num):
+        golden_refs = ''
+        for ref in islice(self.refs, num):
+            golden_refs += ref['text'] + '; '
+        return golden_refs
 
 
 class BioASQ:
@@ -83,6 +90,8 @@ if __name__ == '__main__':
     print(len(data.get_type_questions('yesno')))
 
     print(len(data.get_document_urls()))
+
+    print(data.questions[1].get_golden_refs())
 
     data = QALM_mcq(['dataset/QALM/test/mcq/bioasq_mcq_test.jsonl'])
 
