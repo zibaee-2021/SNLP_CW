@@ -14,3 +14,5 @@ refs/
 *notes*
 *.env
 sandpit
+*.xml
+*.iml
