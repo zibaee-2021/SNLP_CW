@@ -1,4 +1,4 @@
-.idea
+*.idea
 *.csv
 *.zip
 *.xl
@@ -12,3 +12,5 @@ refs/
 
 *.json*
 *notes*
+*.env
+sandpit
