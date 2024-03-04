@@ -1,0 +1,8 @@
+Dataset,Question_Type,RAG,prompt_template,Model,Accuracy
+BioASQ,yesno,Golden_all,"""{prompt} based only on the following context: {docs}.\n{format_instructions}.\n{question}""",OpenAI,98.8%
+BioASQ,yesno,Golden_5,"""{prompt} based only on the following context: {docs}.\n{format_instructions}.\n{question}""",OpenAI,97.7%
+BioASQ,yesno,Golden_1,"""{prompt} based only on the following context: {docs}.\n{format_instructions}.\n{question}""",OpenAI,91.9%
+QALM_mcq,mcq,True,"""{format_instructions}. {prompt} based on the following context: {docs}. {question}""",OpenAI,69.9%
+QALM_mcq,mcq,False,"""{prompt} based only on the following context: {docs}.\n{format_instructions}.\n{question}""",OpenAI,78.0%
+QALM_mcq,mcq,False,"""{format_instructions}. {prompt} {question}""",OpenAI,80.0%
+QALM_mcq,mcq,False,"""{format_instructions}. {prompt} {question}""",OpenAI,73.3%

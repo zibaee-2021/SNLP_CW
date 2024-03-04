@@ -7,7 +7,7 @@ StreamingStdOutCallbackHandler
 
 # Replace with the .gguf model file in your repository
 # Don't put your model file under the SNLP_CW repo unless you add it to .gitignore
-your_model_path = "../llama.cpp/models/llama-2-7b-chat.Q4_K_M.gguf"
+your_model_path = "../../llama.cpp/models/llama-2-7b-chat.Q4_K_M.gguf"
 
 question_topic = "biomedical/clinical"
 user_question = str(input("Please enter your question："))
