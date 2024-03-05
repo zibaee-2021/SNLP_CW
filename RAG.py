@@ -1,13 +1,21 @@
-import json
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from langchain.docstore.document import Document
 from langchain.document_loaders.base import BaseLoader
 
 from langchain.text_splitter import TokenTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
+
+import json
+import os
+
+
+os.environ["OPENAI_API_KEY"] = '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'
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 
 class JSONLoader(BaseLoader):
     def __init__(
@@ -38,35 +46,52 @@ class JSONLoader(BaseLoader):
                 docs.append(Document(page_content=record.get(self._content_key), metadata=metadata))
         return docs
 
-def RAG_DB_setup(data):
-    text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
-    chunks = text_splitter.split_documents(data)
 
-    modelPath = "intfloat/e5-large-unsupervised"
-    embeddings = HuggingFaceEmbeddings(
-        model_name=modelPath,
-        model_kwargs={'device': 'cuda'},
-        encode_kwargs={'normalize_embeddings': False}
+def load_document(document_file_path):
+    loader = JSONLoader(
+        file_path=document_file_path,
+        content_key='article_abstract'
     )
 
-    # Using faiss index
-    db = FAISS.from_documents(chunks, embeddings)
+    return loader.load()
 
-    return db
+
+class RAG:
+    def __init__(self, document_file_path, embedding_model):
+        # Load Document from File Path
+        self.data = load_document(document_file_path)
+
+        # Split Documents using TokenTextSplitter to chunks
+        text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
+        self.chunks = text_splitter.split_documents(self.data)
+
+        # Choose the Embeddings Model
+        if embedding_model == 'e5':
+            self.embeddings = HuggingFaceEmbeddings(
+                                    model_name="intfloat/e5-large-unsupervised",
+                                    model_kwargs={'device': 'cuda'},
+                                    encode_kwargs={'normalize_embeddings': False}
+                              )
+
+        elif embedding_model == 'OpenAI':
+            self.embeddings = OpenAIEmbeddings()
+        else:
+            raise NotImplementedError
+
+        # Setup database
+        self.database = FAISS.from_documents(self.chunks, self.embeddings)
+
+    def get_retriever(self, k):
+        return self.database.as_retriever(k=k)
+
 
 if __name__ == '__main__':
-    loader = JSONLoader(
-        file_path='dataset/pubmed_december-2023.json',
-        # jq_schema='.[]',
-        content_key='article_abstract'
-        # metadata_func=metadata_func
-    )
-    data = loader.load()
+    rag_pipeline = RAG('refs/pubmed_2023.json', embedding_model='OpenAI')
 
-    print(f"{len(data)} pubmed articles are loaded!")
+    retriever = rag_pipeline.get_retriever(k=2)
 
-    db = RAG_DB_setup(data)
+    docs_1 = retriever.get_relevant_documents("What is the most common neurological disease published in December 2023")
+    print(docs_1)
 
-    query = "What is the most common neurological disease published in December 2023"
-    docs = db.similarity_search(query)
-    print(docs)
+    docs_2 = retriever.get_relevant_documents("What were the results of the DESTINY-Breast04 Trial?")
+    print(docs_2)

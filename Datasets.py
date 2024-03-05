@@ -91,7 +91,7 @@ if __name__ == '__main__':
 
     print(len(data.get_document_urls()))
 
-    print(data.questions[1].get_golden_refs())
+    print(data.questions[1].get_golden_refs(num=5))
 
     data = QALM_mcq(['dataset/QALM/test/mcq/bioasq_mcq_test.jsonl'])
 
