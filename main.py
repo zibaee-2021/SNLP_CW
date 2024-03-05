@@ -78,6 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--llm_model', default='OpenAI', choices=['OpenAI', 'Llama2'], type=str,
                         help='LLM Model utilized to process context and answer questions')
     parser.add_argument('--rag', default=True, type=bool, help='If RAG Pipeline is activated')
+    parser.add_argument('--load_db', default=True, type=bool, help='If Load FAISS database')
 
     args = parser.parse_args()
     print(args)
@@ -96,8 +97,14 @@ if __name__ == '__main__':
                                                      question_type=args.question_type,
                                                      with_rag=args.rag)
 
-    # if args.rag:
-    #    rag = RAG('refs/pubmed_2020-2023.json')
+    if args.rag:
+        if load:
+            rag_database = load_faiss_database(documents='BioASQ_11B_test',
+                                               embedding_model='OpenAI')
+        else:
+            rag_database = save_faiss_database(documents='BioASQ_11B_test',
+                                               document_file_path='refs/retrieved_BioASQ_test.json',
+                                               embedding_model='OpenAI')
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -131,8 +138,11 @@ if __name__ == '__main__':
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             "format_instructions": format_instructions,
-             "docs": question.get_golden_refs(num=10000)
+             # Golden References
+             # "docs": question.get_golden_refs(num=10000),
+             # Retrieved References
+             "docs":
+             "format_instructions": format_instructions
              }
         )['text']
 
@@ -151,12 +161,6 @@ if __name__ == '__main__':
         else:
             print(f"\nCaptured False Answer: {answer}")
             n_false += 1
-
-        '''
-            # Invalid / Not Captured
-            print(f"\nInvalid / Not Captured Answer: {output['answer']}")
-            n_invalid += 1
-        '''
 
         # Print a count on true and false answers
         print('True: ', n_true, 'False: ', n_false, 'Invalid: ', n_invalid)
