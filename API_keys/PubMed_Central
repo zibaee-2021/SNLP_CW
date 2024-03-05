@@ -1,0 +1,7 @@
+Here is my NCBI API key: ed4f77b8ca7dbf2718da145ed1c0246d1508
+It should be used with my email: shahin.zibaee.23@ucl.ac.uk
+
+"NCBI E-utils users are allowed 3 requests per second **without** an API key.
+The limit is increased to 10 requests per second **with** an API key."
+
+(Note though that I did not noticed an improved speed when I tried it, but you can try it yourselves).
