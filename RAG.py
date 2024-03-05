@@ -4,9 +4,11 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
+import numpy as np
 import json
 import os
 
+from Datasets import BioASQ
 
 os.environ["OPENAI_API_KEY"] = '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'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -103,18 +105,6 @@ def load_faiss_database(documents, embedding_model):
     return database
 
 
-def get_matching_urls(golden_file_path, query):
-    matching_urls = []
-    with open(golden_file_path) as f:
-        golden_data = json.load(f)
-
-        for item in golden_data:
-            if item["body"] == query:
-                matching_urls.extend(item["documents"])
-
-    return matching_urls
-
-
 if __name__ == '__main__':
     load = True
 
@@ -123,44 +113,37 @@ if __name__ == '__main__':
                                            embedding_model='OpenAI')
     else:
         rag_database = save_faiss_database(documents='BioASQ_11B_test',
-                                           document_file_path='refs/retrieved_BioASQ_test.json',
+                                           document_file_path='refs/BioASQ_11B_test_yesno.json',
                                            embedding_model='OpenAI')
 
-    retriever = rag_database.as_retriever(k=2)
+    retriever = rag_database.as_retriever(k=2, fetch_k=10)
 
-    golden_file_path = 'Yesno_golden_merged.json'
+    # ------------------------------------------------------------------------------------------------------------------
 
-    # Retrieve Yesno_golden_merged.json 's URL
-    query = "Do only changes in coding regions of MEF2C cause developmental disorders?"
-    matching_golden_urls = get_matching_urls('Yesno_golden_merged.json', query)
+    data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
+                   'dataset/Task11BGoldenEnriched/11B2_golden.json',
+                   'dataset/Task11BGoldenEnriched/11B3_golden.json',
+                   'dataset/Task11BGoldenEnriched/11B4_golden.json'])
 
-    print("Matching URLs in Yesno_golden_merged.json:")
-    for url in matching_golden_urls:
-        print(url)
+    yesno_questions = data.get_type_questions('yesno')
 
-    # Use e5 retrieved from Retrieved_BioAsq_test.json 's URL
-    retrieved_docs = retriever.get_relevant_documents(query)
-    matching_e5_urls = [doc.metadata['url'] for doc in retrieved_docs]
-    print("\nMatching URLs found by e5 in Retrieved_BioAsq_test.json:")
-    for url in matching_e5_urls:
-        print(url)
+    matching_ratio = []
 
-    # Count the number of intersections between matching_golden_urls and matching_e5_urls
-    intersection_count = sum(1 for url in matching_e5_urls if url in matching_golden_urls)
+    for question in yesno_questions:
+        retrieved_docs = retriever.get_relevant_documents(question.question_body)
 
-    # Count the total number of URLs found by e5
-    e5_count = len(matching_e5_urls)
+        print(question.question_body)
 
-    # Calculate the matching ratio
-    if e5_count > 0:
-        matching_ratio = intersection_count / e5_count
-    else:
-        matching_ratio = 0.0
+        print(question.docs)
 
-    print("\nMatching Ratio (e5 matches and golden matches / e5 matches):", matching_ratio)
+        count = 0
+        for doc in retrieved_docs:
+            print(doc.metadata['url'])
+            if doc.metadata['url'] in question.docs:
+                count += 1
 
-    # docs_1 = retriever.get_relevant_documents("What is the most common neurological disease published in December 2023")
-    # print(docs_1)
+        print(count / len(retrieved_docs))
 
-    # docs_2 = retriever.get_relevant_documents("What were the results of the DESTINY-Breast04 Trial?")
-    # print('\n', docs_2)
+        matching_ratio.append(count / len(retrieved_docs))
+
+    print("\nMatching Ratio (Retrieved URL's Percentage in Golden Refs:", np.mean(matching_ratio))

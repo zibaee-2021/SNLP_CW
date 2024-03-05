@@ -33,7 +33,7 @@ async def extract_data_from_url(session, url):
 with open('../Yesno_golden_merged.json', 'r', encoding='utf-8') as json_file:
     data = json.load(json_file)
 
-# Load Retrieved.json file if it exists
+# Load BioASQ_11B_test_yesno.json file if it exists
 try:
     with open('Retrieved_golden_merged.json', 'r', encoding='utf-8') as retrieved_file:
         retrieved_data = json.load(retrieved_file)
@@ -68,11 +68,11 @@ loop = asyncio.get_event_loop()
 # Run the asynchronous main function
 await main()
 
-# Save retrieved data to Retrieved.json file
-with open('Retrieved.json', 'w', encoding='utf-8') as output_file:
+# Save retrieved data to BioASQ_11B_test_yesno.json file
+with open('BioASQ_11B_test_yesno.json', 'w', encoding='utf-8') as output_file:
     json.dump(retrieved_data, output_file, indent=4, ensure_ascii=False)
 
-print("Retrieved data saved to Retrieved.json")
+print("Retrieved data saved to BioASQ_11B_test_yesno.json")
 
 import aiohttp
 import asyncio
@@ -100,7 +100,7 @@ async def extract_data_from_url(session, url):
 with open('Yesno_11.json', 'r', encoding='utf-8') as json_file:
     data = json.load(json_file)
 
-# Load Retrieved.json file if it exists
+# Load BioASQ_11B_test_yesno.json file if it exists
 try:
     with open('Retrieved_BioAsq_train.json', 'r', encoding='utf-8') as retrieved_file:
         retrieved_data = json.load(retrieved_file)
@@ -135,8 +135,8 @@ loop = asyncio.get_event_loop()
 # Run the asynchronous main function
 await main()
 
-# Save retrieved data to Retrieved.json file
-with open('Retrieved.json', 'w', encoding='utf-8') as output_file:
+# Save retrieved data to BioASQ_11B_test_yesno.json file
+with open('BioASQ_11B_test_yesno.json', 'w', encoding='utf-8') as output_file:
     json.dump(retrieved_data, output_file, indent=4, ensure_ascii=False)
 
-print("Retrieved data saved to Retrieved.json")
+print("Retrieved data saved to BioASQ_11B_test_yesno.json")

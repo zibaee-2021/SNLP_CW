@@ -1,18 +1,14 @@
-import math
-
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import StructuredOutputParser, ResponseSchema
-from langchain.output_parsers import OutputFixingParser
 from langchain.chains import LLMChain
-from langchain_core import exceptions
 
 from tqdm import tqdm
 import argparse
 import csv
 
-from RAG import RAG
 from LLM import Llama2, GPT
-from Datasets import Question, QALM_mcq, BioASQ
+from Datasets import QALM_mcq, BioASQ
+import RAG
 
 
 class PromptLibrary:
@@ -35,7 +31,7 @@ class PromptLibrary:
 
 
 def format_docs(docs):
-    return "\n".join(doc.metadata['title'] for doc in docs)
+    return "\n".join(doc.page_content for doc in docs)
 
 
 def get_questions(dataset, question_type):
@@ -77,7 +73,7 @@ if __name__ == '__main__':
                         help='Specified Question Type in the QA Dataset')
     parser.add_argument('-m', '--llm_model', default='OpenAI', choices=['OpenAI', 'Llama2'], type=str,
                         help='LLM Model utilized to process context and answer questions')
-    parser.add_argument('--rag', default=True, type=bool, help='If RAG Pipeline is activated')
+    parser.add_argument('--rag', default='OpenAI', help='If RAG Pipeline is activated')
     parser.add_argument('--load_db', default=True, type=bool, help='If Load FAISS database')
 
     args = parser.parse_args()
@@ -98,13 +94,15 @@ if __name__ == '__main__':
                                                      with_rag=args.rag)
 
     if args.rag:
-        if load:
-            rag_database = load_faiss_database(documents='BioASQ_11B_test',
-                                               embedding_model='OpenAI')
+        if args.load_db:
+            rag_database = RAG.load_faiss_database(documents='BioASQ_11B_test',
+                                                   embedding_model='OpenAI')
         else:
-            rag_database = save_faiss_database(documents='BioASQ_11B_test',
-                                               document_file_path='refs/retrieved_BioASQ_test.json',
-                                               embedding_model='OpenAI')
+            rag_database = RAG.save_faiss_database(documents='BioASQ_11B_test',
+                                                   document_file_path='refs/retrieved_BioASQ_ruyi.json',
+                                                   embedding_model='OpenAI')
+
+        retriever = rag_database.as_retriever(k=2)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -131,17 +129,19 @@ if __name__ == '__main__':
 
         print('\nGolden answer: ', question.answer)
 
-        print('\nGolden refs: ', question.get_golden_refs(num=1))
+        if args.rag:
+            # Golden References
+            # docs = question.get_golden_refs(num=10000)
+            # Retrieved Documents
+            docs = format_docs(retriever.get_relevant_documents(question.question_body))
+            print('Retrieved Documents: ', docs)
 
         chain = LLMChain(llm=model, prompt=prompt_template, output_parser=output_parser)
 
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             # Golden References
-             # "docs": question.get_golden_refs(num=10000),
-             # Retrieved References
-             "docs":
+             "docs": docs,
              "format_instructions": format_instructions
              }
         )['text']
