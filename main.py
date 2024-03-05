@@ -21,7 +21,7 @@ class PromptLibrary:
             for prompt_dict in reader:
                 self.prompt_template_dict.append(prompt_dict)
 
-    def get_prompt_template(self, dataset, question_type, with_rag):
+    def get_prompt_template(self, dataset, question_type):
         for prompt_dict in self.prompt_template_dict:
             if prompt_dict['Dataset'] == dataset and prompt_dict['Question_Type'] == question_type:
                 return PromptTemplate.from_template(prompt_dict['prompt_template'])
@@ -87,9 +87,7 @@ if __name__ == '__main__':
 
     # Extract the Prompt Template
     prompt_lib = PromptLibrary('prompt_template.csv')
-    prompt_template = prompt_lib.get_prompt_template(dataset=args.dataset,
-                                                     question_type=args.question_type,
-                                                     with_rag=args.rag)
+    prompt_template = prompt_lib.get_prompt_template(dataset=args.dataset, question_type=args.question_type)
 
     if ENABLE_RAG:
         if args.load_db:
