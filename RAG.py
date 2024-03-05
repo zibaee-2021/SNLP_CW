@@ -63,7 +63,7 @@ def get_embeddings(embedding_model):
     if embedding_model == 'e5':
         embeddings = HuggingFaceEmbeddings(
             model_name="intfloat/e5-large-unsupervised",
-            model_kwargs={'device': 'cuda'},
+            model_kwargs={'device': 'cpu'},
             encode_kwargs={'normalize_embeddings': False}
         )
 
@@ -103,6 +103,18 @@ def load_faiss_database(documents, embedding_model):
     return database
 
 
+def get_matching_urls(golden_file_path, query):
+    matching_urls = []
+    with open(golden_file_path) as f:
+        golden_data = json.load(f)
+
+        for item in golden_data:
+            if item["body"] == query:
+                matching_urls.extend(item["documents"])
+
+    return matching_urls
+
+
 if __name__ == '__main__':
     load = True
 
@@ -116,8 +128,39 @@ if __name__ == '__main__':
 
     retriever = rag_database.as_retriever(k=2)
 
-    docs_1 = retriever.get_relevant_documents("What is the most common neurological disease published in December 2023")
-    print(docs_1)
+    golden_file_path = 'Yesno_golden_merged.json'
 
-    docs_2 = retriever.get_relevant_documents("What were the results of the DESTINY-Breast04 Trial?")
-    print('\n', docs_2)
+    # Retrieve Yesno_golden_merged.json 's URL
+    query = "Do only changes in coding regions of MEF2C cause developmental disorders?"
+    matching_golden_urls = get_matching_urls('Yesno_golden_merged.json', query)
+
+    print("Matching URLs in Yesno_golden_merged.json:")
+    for url in matching_golden_urls:
+        print(url)
+
+    # Use e5 retrieved from Retrieved_BioAsq_test.json 's URL
+    retrieved_docs = retriever.get_relevant_documents(query)
+    matching_e5_urls = [doc.metadata['url'] for doc in retrieved_docs]
+    print("\nMatching URLs found by e5 in Retrieved_BioAsq_test.json:")
+    for url in matching_e5_urls:
+        print(url)
+
+    # Count the number of intersections between matching_golden_urls and matching_e5_urls
+    intersection_count = sum(1 for url in matching_e5_urls if url in matching_golden_urls)
+
+    # Count the total number of URLs found by e5
+    e5_count = len(matching_e5_urls)
+
+    # Calculate the matching ratio
+    if e5_count > 0:
+        matching_ratio = intersection_count / e5_count
+    else:
+        matching_ratio = 0.0
+
+    print("\nMatching Ratio (e5 matches and golden matches / e5 matches):", matching_ratio)
+
+    # docs_1 = retriever.get_relevant_documents("What is the most common neurological disease published in December 2023")
+    # print(docs_1)
+
+    # docs_2 = retriever.get_relevant_documents("What were the results of the DESTINY-Breast04 Trial?")
+    # print('\n', docs_2)
