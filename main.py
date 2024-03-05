@@ -10,6 +10,7 @@ from LLM import Llama2, GPT
 from Datasets import QALM_mcq, BioASQ
 import RAG
 
+ENABLE_RAG = False
 
 class PromptLibrary:
     def __init__(self, prompt_template_csv_file):
@@ -22,9 +23,7 @@ class PromptLibrary:
 
     def get_prompt_template(self, dataset, question_type, with_rag):
         for prompt_dict in self.prompt_template_dict:
-            if prompt_dict['Dataset'] == dataset \
-                    and prompt_dict['Question_Type'] == question_type \
-                    and prompt_dict['RAG'] == str(with_rag):
+            if prompt_dict['Dataset'] == dataset and prompt_dict['Question_Type'] == question_type:
                 return PromptTemplate.from_template(prompt_dict['prompt_template'])
 
         raise ModuleNotFoundError
@@ -73,7 +72,6 @@ if __name__ == '__main__':
                         help='Specified Question Type in the QA Dataset')
     parser.add_argument('-m', '--llm_model', default='OpenAI', choices=['OpenAI', 'Llama2'], type=str,
                         help='LLM Model utilized to process context and answer questions')
-    parser.add_argument('--rag', default='OpenAI', help='If RAG Pipeline is activated')
     parser.add_argument('--load_db', default=True, type=bool, help='If Load FAISS database')
 
     args = parser.parse_args()
@@ -93,7 +91,7 @@ if __name__ == '__main__':
                                                      question_type=args.question_type,
                                                      with_rag=args.rag)
 
-    if args.rag:
+    if ENABLE_RAG:
         if args.load_db:
             rag_database = RAG.load_faiss_database(documents='BioASQ_11B_test',
                                                    embedding_model='OpenAI')
@@ -129,7 +127,7 @@ if __name__ == '__main__':
 
         print('\nGolden answer: ', question.answer)
 
-        if args.rag:
+        if ENABLE_RAG:
             # Golden References
             # docs = question.get_golden_refs(num=10000)
             # Retrieved Documents
@@ -141,7 +139,7 @@ if __name__ == '__main__':
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             "docs": docs,
+             # "docs": docs,
              "format_instructions": format_instructions
              }
         )['text']
