@@ -106,6 +106,8 @@ def load_faiss_database(documents, embedding_model):
 
 
 if __name__ == '__main__':
+    print(len(load_pubmed_json_docs('refs/pubmed_2020-2023.json')))
+
     load = True
 
     if load:

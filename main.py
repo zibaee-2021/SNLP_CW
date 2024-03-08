@@ -10,7 +10,7 @@ from LLM import Llama2, GPT
 from Datasets import QALM_mcq, BioASQ
 import RAG
 
-ENABLE_RAG = False
+ENABLE_RAG = True
 
 class PromptLibrary:
     def __init__(self, prompt_template_csv_file):
@@ -91,7 +91,10 @@ if __name__ == '__main__':
 
     if ENABLE_RAG:
         if args.load_db:
-            rag_database = RAG.load_faiss_database(documents='BioASQ_11B_test',
+            # rag_database = RAG.load_faiss_database(documents='BioASQ_11B_test',
+            #                                        embedding_model='OpenAI')
+
+            rag_database = RAG.load_faiss_database(documents='PubMed_2023',
                                                    embedding_model='OpenAI')
         else:
             rag_database = RAG.save_faiss_database(documents='BioASQ_11B_test',
@@ -137,7 +140,7 @@ if __name__ == '__main__':
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             # "docs": docs,
+             "docs": docs,
              "format_instructions": format_instructions
              }
         )['text']

@@ -1,6 +1,10 @@
 Dataset,Question_Type,RAG,prompt_template,Model,Accuracy
+BioASQ,yesno,PubMed_2023_OpenAI,"""{prompt} referencing the following context if necessary: {docs}.\n{format_instructions}.\n{question}""",OpenAI,74.4%
+BioASQ,yesno,BioASQ_11B_OpenAI,"""{prompt} referencing the following context if necessary: {docs}.\n{format_instructions}.\n{question}""",OpenAI,89.5%
+BioASQ,yesno,None,"""{prompt} in clinical context.\n{format_instructions}.\n{question}""",OpenAI,80.2%
+BioASQ,yesno,None,"""{prompt} in a clinical context.\n{format_instructions}.\n{question}""",OpenAI,80.2%
+BioASQ,yesno,None,"""{prompt} in a biomedical context.\n{format_instructions}.\n{question}""",OpenAI,84.9%
 BioASQ,yesno,None,"""{prompt}.\n{format_instructions}.\n{question}""",OpenAI,83.7%
-BioASQ,yesno,OpenAI,"""{prompt} referencing the following context if necessary: {docs}.\n{format_instructions}.\n{question}""",OpenAI,89.5%
 BioASQ,yesno,Golden_all,"""{prompt} based only on the following context: {docs}.\n{format_instructions}.\n{question}""",OpenAI,98.8%
 BioASQ,yesno,Golden_5,"""{prompt} based only on the following context: {docs}.\n{format_instructions}.\n{question}""",OpenAI,97.7%
 BioASQ,yesno,Golden_1,"""{prompt} based only on the following context: {docs}.\n{format_instructions}.\n{question}""",OpenAI,91.9%
