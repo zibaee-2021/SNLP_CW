@@ -4,6 +4,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
+import faiss
 import numpy as np
 import json
 import os
@@ -96,29 +97,25 @@ def save_faiss_database(documents, document_file_path, embedding_model):
 
 
 def load_faiss_database(documents, embedding_model):
-    # Get the Embeddings Model
     embeddings = get_embeddings(embedding_model)
 
     # Load database from file
     database = FAISS.load_local(f"FAISS/faiss_index_{documents}_{embedding_model}", embeddings)
+    # faiss_index = faiss.read_index(f"FAISS/faiss_index_{documents}_{embedding_model}")
 
     return database
 
 
 if __name__ == '__main__':
-    print(len(load_pubmed_json_docs('refs/pubmed_2020-2023.json')))
-
     load = True
 
     if load:
-        rag_database = load_faiss_database(documents='BioASQ_11B_test',
-                                           embedding_model='OpenAI')
+        retrieval_model = load_faiss_database(documents='BioASQ_11B_test',
+                                              embedding_model='OpenAI')
     else:
-        rag_database = save_faiss_database(documents='BioASQ_11B_test',
-                                           document_file_path='refs/BioASQ_11B_test_yesno.json',
-                                           embedding_model='OpenAI')
-
-    retriever = rag_database.as_retriever(k=2, fetch_k=10)
+        retrieval_model = save_faiss_database(documents='BioASQ_11B_test',
+                                              document_file_path='refs/BioASQ_11B_test_yesno.json',
+                                              embedding_model='OpenAI')
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -132,7 +129,7 @@ if __name__ == '__main__':
     matching_ratio = []
 
     for question in yesno_questions:
-        retrieved_docs = retriever.get_relevant_documents(question.question_body)
+        retrieved_docs = retrieval_model.similarity_search(question.question_body, k=len(question.docs))
 
         print(question.question_body)
 

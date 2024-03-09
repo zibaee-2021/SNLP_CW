@@ -91,17 +91,15 @@ if __name__ == '__main__':
 
     if ENABLE_RAG:
         if args.load_db:
-            # rag_database = RAG.load_faiss_database(documents='BioASQ_11B_test',
-            #                                        embedding_model='OpenAI')
-
-            rag_database = RAG.load_faiss_database(documents='PubMed_2023',
+            rag_database = RAG.load_faiss_database(documents='BioASQ_11B_test',
                                                    embedding_model='OpenAI')
+
+            # rag_database = RAG.load_faiss_database(documents='PubMed_2023',
+            #                                        embedding_model='OpenAI')
         else:
             rag_database = RAG.save_faiss_database(documents='BioASQ_11B_test',
                                                    document_file_path='refs/retrieved_BioASQ_ruyi.json',
                                                    embedding_model='OpenAI')
-
-        retriever = rag_database.as_retriever(k=2)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -132,15 +130,15 @@ if __name__ == '__main__':
             # Golden References
             # docs = question.get_golden_refs(num=10000)
             # Retrieved Documents
-            docs = format_docs(retriever.get_relevant_documents(question.question_body))
-            print('Retrieved Documents: ', docs)
+            docs = rag_database.similarity_search(question.question_body, k=10)
+            print('Retrieved Documents: ', format_docs(docs))
 
         chain = LLMChain(llm=model, prompt=prompt_template, output_parser=output_parser)
 
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             "docs": docs,
+             "docs": format_docs(docs),
              "format_instructions": format_instructions
              }
         )['text']
