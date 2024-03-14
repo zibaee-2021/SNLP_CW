@@ -40,10 +40,10 @@ def fetch_details(id_list):
 
 def get_pubmed_data(
         output_json_file: str,
-        start_date: str = "2023/12/1",
+        start_date: str = "2020/01/01",
         end_date: str = "2023/12/31",
         email: str = 'mehdi.iraqui@gmail.com',
-        max_num_articles: int = 10000
+        max_num_articles: int = 10000000
 ):
     """
     Download the first `max_num_articles` pubmed abstracts published between `start_date` and `end_date`

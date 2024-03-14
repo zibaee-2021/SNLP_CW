@@ -4,60 +4,30 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
-import faiss
-import numpy as np
 import json
 import os
 
 from Datasets import BioASQ
 
-os.environ["OPENAI_API_KEY"] = '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'
+# os.environ["OPENAI_API_KEY"] = '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'
+# os.environ["OPENAI_API_KEY"] = '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'
+os.environ["OPENAI_API_KEY"] = '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'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
-def load_pubmed_json_docs(pubmed_json_path):
+def load_medrag_pubmed_json(json_path_list):
     docs = []
 
-    # Load JSON file
-    with open(pubmed_json_path, encoding='UTF-8') as file:
-        data = json.load(file)
+    for file_path in json_path_list:
+        # Load JSON file
+        with open(file_path, 'r', encoding='UTF-8') as file:
+            for line in file:
+                data = json.loads(line)
 
-        # Iterate through 'pages'
-        for record in data:
-            metadata = {"year": record.get("pub_date").get('year'),
-                        "month": record.get("pub_date").get('month'),
-                        "day": record.get("pub_date").get('day'),
-                        "title": record.get("article_title")}
+                metadata = {"id": data.get("id"),
+                            "title": data.get("title")}
 
-            docs.append(Document(page_content=record.get('article_abstract'), metadata=metadata))
-
-    return docs
-
-
-def load_retrieved_json_docs(retrieved_json_path):
-    docs = []
-
-    # Load JSON file
-    with open(retrieved_json_path, encoding='UTF-8') as file:
-        data = json.load(file)
-
-        # Iterate through 'pages'
-        for record in data:
-            metadata = {"url": record.get("url"),
-                        "title": record.get("title")}
-
-            docs.append(Document(page_content=record.get('abstract'), metadata=metadata))
-
-    return docs
-
-
-def load_docs(document_name, document_file_path):
-    if document_name[:6] == 'PubMed':
-        docs = load_pubmed_json_docs(document_file_path)
-    elif document_name[:6] == 'BioASQ':
-        docs = load_retrieved_json_docs(document_file_path)
-    else:
-        raise NotImplementedError
+                docs.append(Document(page_content=data.get('content'), metadata=metadata))
 
     return docs
 
@@ -78,13 +48,14 @@ def get_embeddings(embedding_model):
     return embeddings
 
 
-def save_faiss_database(documents, document_file_path, embedding_model):
+def save_faiss_database(documents, file_path_list, embedding_model):
     # Load Document from File Path
-    data = load_docs(documents, document_file_path)
+    # data = load_docs(documents, document_file_path)
+    docs = load_medrag_pubmed_json(file_path_list)
 
     # Split Documents using TokenTextSplitter to chunks
     text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
-    chunks = text_splitter.split_documents(data)
+    chunks = text_splitter.split_documents(docs)
 
     # Get the Embeddings Model
     embeddings = get_embeddings(embedding_model)
@@ -101,12 +72,15 @@ def load_faiss_database(documents, embedding_model):
 
     # Load database from file
     database = FAISS.load_local(f"FAISS/faiss_index_{documents}_{embedding_model}", embeddings)
-    # faiss_index = faiss.read_index(f"FAISS/faiss_index_{documents}_{embedding_model}")
 
     return database
 
 
 if __name__ == '__main__':
+    file_path_list = []
+    for i in range(1, 11):
+        file_path_list.append('refs/pubmed/chunk/pubmed23n{:04d}.jsonl'.format(i))
+
     load = True
 
     if load:
@@ -114,9 +88,10 @@ if __name__ == '__main__':
                                               embedding_model='OpenAI')
     else:
         retrieval_model = save_faiss_database(documents='BioASQ_11B_test',
-                                              document_file_path='refs/BioASQ_11B_test_yesno.json',
+                                              file_path_list=file_path_list,
                                               embedding_model='OpenAI')
 
+    '''
     # ------------------------------------------------------------------------------------------------------------------
 
     data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
@@ -146,3 +121,4 @@ if __name__ == '__main__':
         matching_ratio.append(count / len(retrieved_docs))
 
     print("\nMatching Ratio (Retrieved URL's Percentage in Golden Refs:", np.mean(matching_ratio))
+    '''

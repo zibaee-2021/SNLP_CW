@@ -12,6 +12,7 @@ import RAG
 
 ENABLE_RAG = True
 
+
 class PromptLibrary:
     def __init__(self, prompt_template_csv_file):
         self.prompt_template_dict = []
@@ -130,7 +131,7 @@ if __name__ == '__main__':
             # Golden References
             # docs = question.get_golden_refs(num=10000)
             # Retrieved Documents
-            docs = rag_database.similarity_search(question.question_body, k=10)
+            docs = rag_database.similarity_search(question.question_body, k=1)
             print('Retrieved Documents: ', format_docs(docs))
 
         chain = LLMChain(llm=model, prompt=prompt_template, output_parser=output_parser)
