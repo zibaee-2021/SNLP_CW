@@ -1,59 +1,123 @@
 import os
 from time import time
 from tqdm import tqdm
-from lxml import etree
-import faiss
 import numpy as np
+from lxml import etree
+from langchain.docstore.document import Document
+import faiss
+from langchain_community.vectorstores import FAISS
 import openai
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 import tiktoken
+from langchain.text_splitter import TokenTextSplitter
 from openai import OpenAI
 client = OpenAI()
 
-openai.api_key = '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'  # shahin
-
+openai.api_key = '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'  # shahin's key
 
 """
+Note: this code does NOT embed the paper title nor publication date, as is done in Yufei's RAG.py code, 
+which incorporates these in a "metadata" dict: 
+
+from langchain.docstore.document import Document
+docs = []
+for record in data:
+    metadata = {"year": record.get("pub_date").get('year'),
+                "month": record.get("pub_date").get('month'),
+                "day": record.get("pub_date").get('day'),
+                "title": record.get("article_title")}
+    docs.append(Document(page_content=record.get('article_abstract'), metadata=metadata))
+
+
+RAG.py creates a list of records written as: 
+Document(page_content='the abstract text goes here', 
+         metadata={'url' : 'http://www.ncbi.nlm.nih.gov/pubmed/34687634', 
+                   'title': 'title text goes here'})
+            metadata = {"year": record.get("pub_date").get('year'),
+                        "month": record.get("pub_date").get('month'),
+                        "day": record.get("pub_date").get('day'),
+                        "title": record.get("article_title")}
+
+
+Embedding models available from OpenAI API:
+
 MODEL	                ~ PAGES PER DOLLAR	PERFORMANCE ON MTEB EVAL	MAX INPUT
 text-embedding-3-small	62,500	            62.3%	                    8191
 text-embedding-3-large	9,615               64.6%	                    8191
 text-embedding-ada-002	12,500              61.0%	                    8191
 """
-selected_embedding_model = 'text-embedding-3-small'
+
+# SELECTED_EMBEDDING_MODEL = 'text-embedding-ada-002'  # medium cost, but worst performance on MTEB ??
+# SELECTED_EMBEDDING_MODEL = 'text-embedding-3-large' most expensive, best performance on MTEB.
+# SELECTED_EMBEDDING_MODEL = 'text-embedding-3-small'  # cheapest, but medium performance. on MTEB.
+
+# SELECTED_EMBEDDING_MODEL = 'e5'  # Supplied via HuggingFace
+
+SELECTED_EMBEDDING_MODEL = 'faiss.IndexFlatL2'
 
 
-def _extract_abstracts_from_xml(file_path):
+def _extract_docs_from_xml(file_path):
     """
     Extract abstract text only from the unzipped xml file(s) downloaded from
     https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/
     Args:
         file_path:
     Returns:
-
     """
-    # Parse the XML file
-    tree = etree.parse(file_path)
-    root = tree.getroot()
-    # Adjust the namespace dictionary based on your XML structure if needed
-    # ns = {'pm': 'http://www.ncbi.nlm.nih.gov/pubmed'}
-    # ns = {'pm': 'http://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_240101.dtd'}
-    # Extract abstracts
-    abstracts = []
-    # for abstract_text in root.findall('.//pm:AbstractText', namespaces=ns):
-    for abstract_text in root.findall('.//AbstractText'):
-        if abstract_text.text:
-            abstracts.append(abstract_text.text.strip())
-    return abstracts
+    # Parse XML
+    with open(file_path, 'r', encoding='utf-8') as file:  # Assuming UTF-8 encoding
+        tree = etree.parse(file)
+        root = tree.getroot()
+
+    docs = []
+
+    for record in root.findall('.//PubmedArticle'):
+        abstract = record.findtext('.//AbstractText')
+        if abstract in [None, '']:  # Don't include records that have no abstract.
+            continue
+        else:
+            pub_date = record.find('.//PubDate')
+            year = pub_date.findtext('Year') if pub_date is not None else None
+            month = pub_date.findtext('Month') if pub_date is not None else None
+            day = pub_date.findtext('Day') if pub_date is not None else None
+            title = record.findtext('.//ArticleTitle')
+            metadata = {"year": year, "month": month, "day": day, "title": title}
+            docs.append(Document(page_content=abstract, metadata=metadata))
+    return docs
+        # for abstract_text in root.findall('.//AbstractText'):
+        #     if abstract_text.text:
+        #         abstracts.append(abstract_text.text.strip())
+        # return abstracts
 
 
-def _get_num_tokens_from_string(string: str, encoding_name: str) -> int:
-    """Returns the number of tokens in a text string."""
-    encoding = tiktoken.get_encoding(encoding_name)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
-
-def _embed_abstracts(abstracts, file_name):
+def _get_index_embeddings():
     """
+    Copy-pasted from Yufei's RAG.py
+    Args:
+        embedding_model_to_use:
+    Returns:
+    """
+    if SELECTED_EMBEDDING_MODEL == 'e5':
+        index_embeddings = HuggingFaceEmbeddings(
+            model_name="intfloat/e5-large-unsupervised",
+            # model_kwargs={'device': 'cuda'},
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': False}
+        )
+    elif SELECTED_EMBEDDING_MODEL == 'faiss.IndexFlatL2':
+        dimension = 1536  # (For e.g. BERT-like embeddings typically are 768)
+        # "By default, the length of the embedding vector will be 1536 for text-embedding-3-small
+        # or 3072 for text-embedding-3-large"""
+        index_embeddings = faiss.IndexFlatL2(dimension)
+    else:
+        index_embeddings = OpenAIEmbeddings(SELECTED_EMBEDDING_MODEL)
+    return index_embeddings
+
+
+def _embed_docs(abstracts, file_name):
+    """
+    Not currently being used....
     Args:
         abstracts: Text, expected to be extracted from PubMed abstracts.
         file_name: Name of embedding to either read if already exists, or write if not.
@@ -62,7 +126,8 @@ def _embed_abstracts(abstracts, file_name):
     dataset_dir = '../dataset/PubMed_Embeddings'
     file_path = os.path.join(dataset_dir, file_name.rstrip('.xml'))
     binary_file = f'{file_path}.npy'
-    if os.path.isfile(binary_file):
+
+    if os.path.isfile(binary_file):  # if this npy embedding already exists, just read and return it.
         loaded_array = np.load(binary_file)
         return loaded_array
     else:
@@ -70,61 +135,106 @@ def _embed_abstracts(abstracts, file_name):
         # Batch process abstracts for efficiency
         embeddings_list = []
         for abstract in tqdm(abstracts):
-            # response = openai.Embedding.create(input=abstract, engine="text-embedding-ada-002")
-            # response = openai.Embedding.create(input=abstract, engine='text-embedding-3-small')
-            print('here')
-            response = client.embeddings.create(input=abstract, model=selected_embedding_model)  # less expensive but small
+            abstract = abstract.replace("\n", " ")
+            chunked_abstract = _chunk_docs(abstract)
+            response = client.embeddings.create(input=chunked_abstract, model=SELECTED_EMBEDDING_MODEL)
             embeddings_list.append(response.data[0].embedding)
+
+            # Get the Embeddings Model
+            embeddings = _get_index_embeddings()
+
+            # Setup database
+            database = FAISS.from_documents(chunked_abstract, embeddings)
+            database.save_local(f'FAISS/faiss_index_{file_name}_{SELECTED_EMBEDDING_MODEL}')
+
         print(f'Time taken to embed {file_name} dataset = {round(time() - st,4 )} secs.')
         embeddings_array = np.array(embeddings_list)
         np.save(binary_file, embeddings_array)
     return
 
 
-# Not sure if I should be replacing newline with white space ?
-def get_embedding(text):
-    """Note: This function is not used at present"""
-    text = text.replace("\n", " ")
-    return client.embeddings.create(input=[text], model=selected_embedding_model).data[0].embedding
+def _chunk_docs(docs):
+    """
+    Split given docs to chunks.
+    Copy-pasted from Yufei's RAG.py
+    Args:
+        docs:
+    Returns:
+    """
+    text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
+    chunks = text_splitter.split_documents(docs)
+    return chunks
 
 
-def index_pubmed_xml_abstracts_to_faiss(pmc_xml_dir_to_read_in, pubmed_faiss_index_file_to_write):
+def _embed_docs_into_index(faiss_index, chunked_docs):
+    faiss_index = FAISS.from_documents(documents=chunked_docs, embedding=faiss_index)
+    return faiss_index
+
+
+def _save_indexed_pubmed_to_file(faiss_index, total_num_of_docs):
+    print(f'type(faiss_index) {type(faiss_index)}')
+    dst_dir = f'../FAISS/{SELECTED_EMBEDDING_MODEL}'
+    if not os.path.exists(dst_dir): os.makedirs(dst_dir)
+    dst_dir = os.path.join(dst_dir, f'{total_num_of_docs}_docs')
+    # faiss_index.save_local(dst_dir)
+    faiss.write_index(faiss_index, dst_dir)
+
+
+def index_pubmed_xml_abstracts_to_faiss(src_dir_pubmed_xml):
     """
     Read all PubMed XML files from given source directory.
     Extract abstracts text from each file.
     Embed abstracts in selected OpenAI embedding model (selected at top of script).
     Add the list of embeddings to the Faiss index.
     Args:
-        pmc_xml_dir_to_read_in: Source raw PMC xml files to read in and embed in openai FAISS.
-        pubmed_faiss_index_file_to_write: Name of .faiss file (of indexed PubMed data) to write.
+        src_dir_pubmed_xml: Source raw PMC xml files to read in and embed in openai FAISS.
+        dest_dir_pubmed_faiss_index: Name of .faiss file (of indexed PubMed data) to write.
     Returns:
-
     """
     # Init FAISS index; adjust dimensionality as needed
-    dimension = 1536  # BERT-like embeddings typically are 768
-    # "By default, the length of the embedding vector will be 1536 for text-embedding-3-small or 3072 for
-    # text-embedding-3-large"""
-    index = faiss.IndexFlatL2(dimension)
+    # dimension = 1536  # (For e.g. BERT-like embeddings typically are 768)
+    # "By default, the length of the embedding vector will be 1536 for text-embedding-3-small
+    # or 3072 for text-embedding-3-large"""
+    # index = faiss.IndexFlatL2(dimension)
 
-    # Process each XML file in the directory
-    for root_dir_path, dir_names, filenames in os.walk(pmc_xml_dir_to_read_in):
+    # Process each XML file in given directory
+    total_num_of_docs, num_of_docs = 0, 0
+    index_embeddings = None
+
+    for root_dir_path, dir_names, filenames in os.walk(src_dir_pubmed_xml):
         for file_name in filenames:
             if file_name.endswith('.xml'):
                 file_path = os.path.join(root_dir_path, file_name)
-                abstracts = _extract_abstracts_from_xml(file_path)
-                print(f'There are {len(abstracts)} abstracts in this file')
-                if abstracts:  # If there are abstracts extracted
-                    embeddings = _embed_abstracts(abstracts, file_name)
-                    embeddings = embeddings.astype('float32')
-                    index.add(embeddings)  # Add embeddings to FAISS index
+                docs = _extract_docs_from_xml(file_path)
+                num_of_docs = len(docs)
+                print(f'There are {num_of_docs} articles in this file: {file_name}. '
+                      f'(Note: not every article has an abstract.)')
+                chunked_docs = _chunk_docs(docs)
+                if chunked_docs:  # Where there actually is an abstract for that record.
+                    if index_embeddings is None:
+                        index_embeddings = _get_index_embeddings()
+                    else:
+                        # index_embeddings = _embed_docs_into_index(index_embeddings, chunked_docs)
 
-    # Save the FAISS index
-    faiss.write_index(index, pubmed_faiss_index_file_to_write)
+                        docs_embeddings = _embed_docs(chunked_docs, file_name)
+                        # embeddings = embeddings.astype('float32')
+                        index_embeddings.add(docs_embeddings)  # Add embeddings to FAISS index
+
+            total_num_of_docs += num_of_docs
+        _save_indexed_pubmed_to_file(index_embeddings, total_num_of_docs)
 
 
 if __name__ == '__main__':
 
+    dst_dir = f'../FAISS/{SELECTED_EMBEDDING_MODEL[-7:]}'
     start = time()
-    index_pubmed_xml_abstracts_to_faiss(pmc_xml_dir_to_read_in='../dataset/PUBMED',
-                                        pubmed_faiss_index_file_to_write='../FAISS/faiss_index_PMC6388086.faiss')
+    index_pubmed_xml_abstracts_to_faiss(src_dir_pubmed_xml='../dataset/PubMed_XML')
     print(f'Time taken to index these PubMed abstracts was {round((time() - start) / 60, 2)}  minutes')
+
+
+# # Not used, but may be useful:
+# def _get_num_tokens_from_string(string: str, encoding_name: str) -> int:
+#     """Count number of tokens in given text."""
+#     encoding = tiktoken.get_encoding(encoding_name)
+#     num_tokens = len(encoding.encode(string))
+#     return num_tokens
