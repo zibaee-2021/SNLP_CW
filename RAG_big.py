@@ -1,0 +1,193 @@
+import os
+import subprocess
+import json
+import numpy as np
+from langchain.docstore.document import Document
+from langchain.text_splitter import TokenTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as f
+from pyspark.sql.types import MapType, StringType
+from Datasets import BioASQ
+
+os.environ["OPENAI_API_KEY"] = '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'  # shahin
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+open_ai = 'OpenAI'
+e5 = 'e5'
+SELECTED_EMBEDDING_MODEL = open_ai
+
+CPU = 'cpu'
+CUDA = 'cuda'
+SELECTED_PROCESSOR = CPU
+
+
+def load_medrag_pubmed_parquet():
+    """
+    Returns:
+    """
+    # Init SparkSession
+    spark = SparkSession.builder.appName('spark_sesh').getOrCreate()
+
+    # Define a UDF that converts rows into dicts
+    def row_to_doc_dict(id, title, content):
+        return {'id': id, 'title': title, 'content': content}
+
+    # Register UDF
+    doc_dict_udf = f.udf(row_to_doc_dict, MapType(StringType(), StringType()))
+
+    docs = []
+    for parquet_file_number in range(1, 2):
+        # Read your Parquet file
+        parquet_file_name = '{:04d}.parquet'.format(parquet_file_number)
+        parquet_file_path = f'dataset/PUBMED/{parquet_file_name}'
+        sdf = spark.read.parquet(parquet_file_path)
+        sdf.show()
+        # Apply the UDF to each row to create a new column of dictionary type
+        docs_sdf = sdf.withColumn('document', doc_dict_udf(sdf['id'], sdf['title'], sdf['content']))
+        docs_sdf = docs_sdf.select('document')
+        docs_sdf.show()
+        # Collect the resulting rows as Python dictionaries. HENCE NO LONGER GETTING BENEFIT OF SPARK.
+        docs_dicts = docs_sdf.select('document').rdd.map(lambda row: row['document']).collect()
+
+        # Convert dicts to Document objects (THIS CAN ONLY BE USED IF NOT TOO LARGE DATASET)
+        docs = [Document(page_content=d['content'],
+                         metadata={"id": d["id"], "title": d["title"]})
+                for d in docs_dicts]
+        print(f'There are {len(docs)} articles in subset {parquet_file_name}.')
+    return docs
+
+
+def build_faiss_vector_store(embedding_model):
+    # filter and Load Parquets from dataset/PUBMED dir
+    docs = load_medrag_pubmed_parquet()
+
+    # Split Documents using TokenTextSplitter to chunks
+    text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
+    chunks = text_splitter.split_documents(docs)
+    print(f'There are {len(chunks)} chunks')
+    embeddings = get_embeddings(embedding_model)
+    vector_store = FAISS.from_documents(documents=chunks, embedding=embeddings)
+    return vector_store
+
+
+def load_medrag_pubmed_json(json_path_list):
+    docs = []
+
+    for file_path in json_path_list:
+        # Load JSON file
+        with open(file_path, 'r', encoding='UTF-8') as file:
+            for line in file:
+                data = json.loads(line)
+
+                metadata = {"id": data.get("id"),
+                            "title": data.get("title")}
+
+                docs.append(Document(page_content=data.get('content'), metadata=metadata))
+
+    return docs
+
+
+def get_embeddings(embedding_model):
+    if embedding_model == e5:
+        embeddings = HuggingFaceEmbeddings(
+            model_name="intfloat/e5-large-unsupervised",
+            model_kwargs={'device': SELECTED_PROCESSOR},
+            encode_kwargs={'normalize_embeddings': False}
+        )
+
+    elif embedding_model == 'OpenAI':
+        embeddings = OpenAIEmbeddings()
+    else:
+        raise NotImplementedError
+    return embeddings
+
+
+def save_faiss_database(documents, file_path_list, embedding_model):
+    # Load Document from File Path
+    # data = load_docs(documents, document_file_path)
+    docs = load_medrag_pubmed_json(file_path_list)
+
+    # Split Documents using TokenTextSplitter to chunks
+    text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
+    chunks = text_splitter.split_documents(docs)
+
+    # Get the Embeddings Model
+    embeddings = get_embeddings(embedding_model)
+
+    # Setup database
+    database = FAISS.from_documents(chunks, embeddings)
+    database.save_local(f"FAISS/faiss_index_{documents}_{embedding_model}")
+
+    return database
+
+
+def load_faiss_database(documents, embedding_model):
+    embeddings = get_embeddings(embedding_model)
+
+    # Load database from file
+    database = FAISS.load_local(f"FAISS/faiss_index_{documents}_{embedding_model}", embeddings)
+
+    return database
+
+
+if __name__ == '__main__':
+
+    print('STARTING RAG_big script!')
+    from time import time
+    start = time()
+
+    vector_store = build_faiss_vector_store(embedding_model=SELECTED_EMBEDDING_MODEL)
+    vector_store.save_local(f'FAISS/faiss_index_MedRAG_PubMed_{SELECTED_EMBEDDING_MODEL}')
+    end = time()
+    print(f'Time taken to make & save vector-store for 0001.parquet = {round((end - start)/60, 4)} minutes')
+    # Note, my credit balance before this was $9.15, 
+    # and after making the index with 262,000 articles, it was $  ...
+
+    # file_path_list = []
+    # for i in range(1, 11):
+    #     file_path_list.append('refs/pubmed/chunk/pubmed23n{:04d}.jsonl'.format(i))
+    #
+    # load = True
+    #
+    # if load:
+    #     retrieval_model = load_faiss_database(documents='BioASQ_11B_test',
+    #                                           embedding_model='OpenAI')
+    # else:
+    #     retrieval_model = save_faiss_database(documents='BioASQ_11B_test',
+    #                                           file_path_list=file_path_list,
+    #                                           embedding_model='OpenAI')
+    # ------------------------------------------------------------------------------------------------------------------
+
+    data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
+                   'dataset/Task11BGoldenEnriched/11B2_golden.json',
+                   'dataset/Task11BGoldenEnriched/11B3_golden.json',
+                   'dataset/Task11BGoldenEnriched/11B4_golden.json'])
+
+    yesno_questions = data.get_type_questions('yesno')
+
+    matching_ratio = []
+
+    for question in yesno_questions:
+        retrieved_docs = vector_store.similarity_search(question.question_body, k=len(question.docs))
+
+        print(question.question_body)
+
+        print(question.docs)
+
+        count = 0
+        for doc in retrieved_docs:
+            print(doc.metadata['url'])
+            if doc.metadata['url'] in question.docs:
+                count += 1
+
+        print(count / len(retrieved_docs))
+
+        matching_ratio.append(count / len(retrieved_docs))
+
+    print("\nMatching Ratio (Retrieved URL's Percentage in Golden Refs:", np.mean(matching_ratio))
+
+    final_end = time()
+    print(f'Time taken to complete all for 0001.parquet = {round((final_end - start)/60, 4)} minutes')
