@@ -1,6 +1,7 @@
 import os
 from time import time
 from tqdm import tqdm
+import pickle
 import numpy as np
 from lxml import etree
 from langchain.docstore.document import Document
@@ -13,6 +14,7 @@ import tiktoken
 from langchain.text_splitter import TokenTextSplitter
 from openai import OpenAI
 client = OpenAI()
+from Datasets import BioASQ
 
 openai.api_key = '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'  # shahin's key
 
@@ -83,6 +85,7 @@ def _extract_docs_from_xml(file_path):
             day = pub_date.findtext('Day') if pub_date is not None else None
             title = record.findtext('.//ArticleTitle')
             metadata = {"year": year, "month": month, "day": day, "title": title}
+            abstract = abstract.replace('\n', ' ')
             docs.append(Document(page_content=abstract, metadata=metadata))
     return docs
         # for abstract_text in root.findall('.//AbstractText'):
@@ -94,12 +97,10 @@ def _extract_docs_from_xml(file_path):
 def _get_index_embeddings():
     """
     Copy-pasted from Yufei's RAG.py
-    Args:
-        embedding_model_to_use:
     Returns:
     """
     if SELECTED_EMBEDDING_MODEL == 'e5':
-        index_embeddings = HuggingFaceEmbeddings(
+        index = HuggingFaceEmbeddings(
             model_name="intfloat/e5-large-unsupervised",
             # model_kwargs={'device': 'cuda'},
             model_kwargs={'device': 'cpu'},
@@ -109,20 +110,21 @@ def _get_index_embeddings():
         dimension = 1536  # (For e.g. BERT-like embeddings typically are 768)
         # "By default, the length of the embedding vector will be 1536 for text-embedding-3-small
         # or 3072 for text-embedding-3-large"""
-        index_embeddings = faiss.IndexFlatL2(dimension)
+        index = faiss.IndexFlatL2(dimension)
     else:
-        index_embeddings = OpenAIEmbeddings(SELECTED_EMBEDDING_MODEL)
-    return index_embeddings
+        index = OpenAIEmbeddings()
+    return index
 
 
-def _embed_docs(abstracts, file_name):
+#  Different method that builds vectorstore by FAISS.from_documents(chunked_abstract, embeddings)
+def _embed_docs(chunked_docs, file_name):
     """
-    Not currently being used....
     Args:
-        abstracts: Text, expected to be extracted from PubMed abstracts.
+        chunked_docs: Text, expected to be extracted from PubMed abstracts.
         file_name: Name of embedding to either read if already exists, or write if not.
     Returns: Embedding
     """
+    embeddings_array = None
     dataset_dir = '../dataset/PubMed_Embeddings'
     file_path = os.path.join(dataset_dir, file_name.rstrip('.xml'))
     binary_file = f'{file_path}.npy'
@@ -132,25 +134,14 @@ def _embed_docs(abstracts, file_name):
         return loaded_array
     else:
         st = time()
-        # Batch process abstracts for efficiency
         embeddings_list = []
-        for abstract in tqdm(abstracts):
-            abstract = abstract.replace("\n", " ")
-            chunked_abstract = _chunk_docs(abstract)
-            response = client.embeddings.create(input=chunked_abstract, model=SELECTED_EMBEDDING_MODEL)
+        for chunked_doc in tqdm(chunked_docs):
+            response = client.embeddings.create(input=chunked_doc, model=SELECTED_EMBEDDING_MODEL)
             embeddings_list.append(response.data[0].embedding)
-
-            # Get the Embeddings Model
-            embeddings = _get_index_embeddings()
-
-            # Setup database
-            database = FAISS.from_documents(chunked_abstract, embeddings)
-            database.save_local(f'FAISS/faiss_index_{file_name}_{SELECTED_EMBEDDING_MODEL}')
-
-        print(f'Time taken to embed {file_name} dataset = {round(time() - st,4 )} secs.')
-        embeddings_array = np.array(embeddings_list)
-        np.save(binary_file, embeddings_array)
-    return
+            embeddings_array = np.array(embeddings_list)
+            np.save(binary_file, embeddings_array)
+        print(f'Time taken to embed {file_name} dataset = {round(time() - st, 4)} secs.')
+    return embeddings_array
 
 
 def _chunk_docs(docs):
@@ -172,12 +163,11 @@ def _embed_docs_into_index(faiss_index, chunked_docs):
 
 
 def _save_indexed_pubmed_to_file(faiss_index, total_num_of_docs):
-    print(f'type(faiss_index) {type(faiss_index)}')
-    dst_dir = f'../FAISS/{SELECTED_EMBEDDING_MODEL}'
+    dst_dir = f'../FAISS/faissindexflatL2/{total_num_of_docs}docs'
     if not os.path.exists(dst_dir): os.makedirs(dst_dir)
-    dst_dir = os.path.join(dst_dir, f'{total_num_of_docs}_docs')
-    # faiss_index.save_local(dst_dir)
-    faiss.write_index(faiss_index, dst_dir)
+    dst = os.path.join(dst_dir, 'index.faiss')
+    faiss.write_index(faiss_index, dst)
+    FAISS
 
 
 def index_pubmed_xml_abstracts_to_faiss(src_dir_pubmed_xml):
@@ -199,7 +189,8 @@ def index_pubmed_xml_abstracts_to_faiss(src_dir_pubmed_xml):
 
     # Process each XML file in given directory
     total_num_of_docs, num_of_docs = 0, 0
-    index_embeddings = None
+    dimension = 1536
+    index = faiss.IndexFlatL2(dimension)
 
     for root_dir_path, dir_names, filenames in os.walk(src_dir_pubmed_xml):
         for file_name in filenames:
@@ -207,30 +198,23 @@ def index_pubmed_xml_abstracts_to_faiss(src_dir_pubmed_xml):
                 file_path = os.path.join(root_dir_path, file_name)
                 docs = _extract_docs_from_xml(file_path)
                 num_of_docs = len(docs)
-                print(f'There are {num_of_docs} articles in this file: {file_name}. '
-                      f'(Note: not every article has an abstract.)')
+                print(f'There are {num_of_docs} articles (abstracts) in this file: {file_name}.')
                 chunked_docs = _chunk_docs(docs)
-                if chunked_docs:  # Where there actually is an abstract for that record.
-                    if index_embeddings is None:
-                        index_embeddings = _get_index_embeddings()
-                    else:
-                        # index_embeddings = _embed_docs_into_index(index_embeddings, chunked_docs)
-
-                        docs_embeddings = _embed_docs(chunked_docs, file_name)
-                        # embeddings = embeddings.astype('float32')
-                        index_embeddings.add(docs_embeddings)  # Add embeddings to FAISS index
-
+                if chunked_docs:
+                    docs_embeddings = _embed_docs(chunked_docs, file_name)
+                    docs_embeddings = docs_embeddings.astype('float32')
+                    index.add(docs_embeddings)  # Add embeddings array to FAISS index
             total_num_of_docs += num_of_docs
-        _save_indexed_pubmed_to_file(index_embeddings, total_num_of_docs)
+        _save_indexed_pubmed_to_file(index, total_num_of_docs)
 
-
+"""
 if __name__ == '__main__':
 
     dst_dir = f'../FAISS/{SELECTED_EMBEDDING_MODEL[-7:]}'
     start = time()
     index_pubmed_xml_abstracts_to_faiss(src_dir_pubmed_xml='../dataset/PubMed_XML')
     print(f'Time taken to index these PubMed abstracts was {round((time() - start) / 60, 2)}  minutes')
-
+"""
 
 # # Not used, but may be useful:
 # def _get_num_tokens_from_string(string: str, encoding_name: str) -> int:
@@ -238,3 +222,40 @@ if __name__ == '__main__':
 #     encoding = tiktoken.get_encoding(encoding_name)
 #     num_tokens = len(encoding.encode(string))
 #     return num_tokens
+
+# """
+if __name__ == '__main__':
+    # Load index (vectorstore) from file
+    total_num_of_docs = 15401
+    dst_dir = f'../FAISS/faissindexflatL2/{total_num_of_docs}docs'
+    # vectorstore = FAISS.load_local(dst_dir, OpenAIEmbeddings())
+    vectorstore = faiss.read_index(f'{dst_dir}/index.faiss')
+
+    data = BioASQ(['../dataset/Task11BGoldenEnriched/11B1_golden.json',
+                   '../dataset/Task11BGoldenEnriched/11B2_golden.json',
+                   '../dataset/Task11BGoldenEnriched/11B3_golden.json',
+                   '../dataset/Task11BGoldenEnriched/11B4_golden.json'])
+    yesno_questions = data.get_type_questions('yesno')
+    matching_ratio = []
+
+    for question in yesno_questions:
+        retrieved_docs = vectorstore.similarity_search(question.question_body, k=len(question.docs))
+        # k = 4  # Number of nearest neighbors to find
+        # xq = question.question_body
+        # D, I = vectorstore.search(xq, k=len(question.docs))
+        # for i, query_vec in enumerate(xq):
+        #     print(f'Query {i}:')
+        #     for j, doc_idx in enumerate(I[i]):
+        #         print(f'  {j + 1}: Document {doc_idx}, Distance: {D[i][j]}')
+
+        print(question.question_body)
+        print(question.docs)
+        count = 0
+        for doc in retrieved_docs:
+            print(doc.metadata['url'])
+            if doc.metadata['url'] in question.docs:
+                count += 1
+        print(count / len(retrieved_docs))
+        matching_ratio.append(count / len(retrieved_docs))
+    print("\nMatching Ratio (Retrieved URL's Percentage in Golden Refs:", np.mean(matching_ratio))
+# """
