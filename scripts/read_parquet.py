@@ -33,8 +33,8 @@ if __name__ == '__main__':
         # Number of rows in 0009.parquet dataframe = 203584
 
         # Extract abstracts and save to parquets
-        abstracts_sdf = sdf.select('content')
-        abstracts_sdf.show()
-        abstracts_parquet_file_name = '{:04d}.parquet'.format(parquet_file_number)
-        output_parquet_file_path = f'../dataset/PUBMED/MedRAG_abstracts/{abstracts_parquet_file_name}'
-        abstracts_sdf.write.parquet(output_parquet_file_path)
+        id_title_abstracts_sdf = sdf.select('id', 'title', 'content')
+        id_title_abstracts_sdf.show()
+        id_title_abstracts_parquet_file_name = '{:04d}.parquet'.format(parquet_file_number)
+        output_parquet_file_path = f'../dataset/PUBMED/MedRAG_id_title_abstracts/{id_title_abstracts_parquet_file_name}'
+        id_title_abstracts_sdf.write.parquet(output_parquet_file_path)
