@@ -2,6 +2,7 @@ import os
 import subprocess
 import json
 import numpy as np
+from tqdm import tqdm
 from langchain.docstore.document import Document
 from langchain.text_splitter import TokenTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -76,17 +77,15 @@ def build_faiss_vector_store(embedding_model):
 def load_medrag_pubmed_json(json_path_list):
     docs = []
 
-    for file_path in json_path_list:
+    for file_path in tqdm(json_path_list):
         # Load JSON file
         with open(file_path, 'r', encoding='UTF-8') as file:
             for line in file:
                 data = json.loads(line)
-
                 metadata = {"id": data.get("id"),
                             "title": data.get("title")}
-
                 docs.append(Document(page_content=data.get('content'), metadata=metadata))
-
+    print(f'Total number of articles is {len(docs)}')
     return docs
 
 
@@ -109,7 +108,7 @@ def save_faiss_database(documents, file_path_list, embedding_model):
     # Load Document from File Path
     # data = load_docs(documents, document_file_path)
     docs = load_medrag_pubmed_json(file_path_list)
-
+    print(f'docs loaded from pubmed jsonl has {len(docs)} articles')
     # Split Documents using TokenTextSplitter to chunks
     text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
     chunks = text_splitter.split_documents(docs)
@@ -119,7 +118,7 @@ def save_faiss_database(documents, file_path_list, embedding_model):
 
     # Setup database
     database = FAISS.from_documents(chunks, embeddings)
-    database.save_local(f"FAISS/faiss_index_{documents}_{embedding_model}")
+    database.save_local(f"FAISS/big_faiss_index_{documents}_{embedding_model}")
 
     return database
 
@@ -138,27 +137,27 @@ if __name__ == '__main__':
     print('STARTING RAG_big script!')
     from time import time
     start = time()
-
-    vector_store = build_faiss_vector_store(embedding_model=SELECTED_EMBEDDING_MODEL)
-    vector_store.save_local(f'FAISS/faiss_index_MedRAG_PubMed_{SELECTED_EMBEDDING_MODEL}')
-    end = time()
-    print(f'Time taken to make & save vector-store for 0001.parquet = {round((end - start)/60, 4)} minutes')
-    # Note, my credit balance before this was $9.15, 
-    # and after making the index with 262,000 articles, it was $  ...
-
-    # file_path_list = []
-    # for i in range(1, 11):
-    #     file_path_list.append('refs/pubmed/chunk/pubmed23n{:04d}.jsonl'.format(i))
     #
-    # load = True
-    #
-    # if load:
-    #     retrieval_model = load_faiss_database(documents='BioASQ_11B_test',
-    #                                           embedding_model='OpenAI')
-    # else:
-    #     retrieval_model = save_faiss_database(documents='BioASQ_11B_test',
-    #                                           file_path_list=file_path_list,
-    #                                           embedding_model='OpenAI')
+    # vector_store = build_faiss_vector_store(embedding_model=SELECTED_EMBEDDING_MODEL)
+    # vector_store.save_local(f'FAISS/faiss_index_MedRAG_PubMed_{SELECTED_EMBEDDING_MODEL}')
+    # end = time()
+    # print(f'Time taken to make & save vector-store for 0001.parquet = {round((end - start)/60, 4)} minutes')
+    # Note, my credit balance before this was $9.15,
+    # and after making the index with 262,000 articles, it was $2.52 but Colab terminated early :(
+
+    file_path_list = []
+    for i in range(1, 11):
+        file_path_list.append('refs/pubmed/chunk/pubmed23n{:04d}.jsonl'.format(i))
+
+    load = True
+
+    if load:
+        retrieval_model = load_faiss_database(documents='BioASQ_11B_test',
+                                              embedding_model='OpenAI')
+    else:
+        retrieval_model = save_faiss_database(documents='BioASQ_11B_test',
+                                              file_path_list=file_path_list,
+                                              embedding_model='OpenAI')
     # ------------------------------------------------------------------------------------------------------------------
 
     data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
@@ -171,7 +170,7 @@ if __name__ == '__main__':
     matching_ratio = []
 
     for question in yesno_questions:
-        retrieved_docs = vector_store.similarity_search(question.question_body, k=len(question.docs))
+        retrieved_docs = retrieval_model.similarity_search(question.question_body, k=len(question.docs))
 
         print(question.question_body)
 
