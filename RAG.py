@@ -4,6 +4,10 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
+from rouge import Rouge
+from nltk.translate.bleu_score import sentence_bleu
+
+import numpy as np
 import json
 import os
 
@@ -77,6 +81,7 @@ def load_faiss_database(documents, embedding_model):
 
 
 if __name__ == '__main__':
+    '''
     file_path_list = []
     for i in range(1, 11):
         file_path_list.append('refs/pubmed/chunk/pubmed23n{:04d}.jsonl'.format(i))
@@ -90,9 +95,11 @@ if __name__ == '__main__':
         retrieval_model = save_faiss_database(documents='BioASQ_11B_test',
                                               file_path_list=file_path_list,
                                               embedding_model='OpenAI')
-
     '''
     # ------------------------------------------------------------------------------------------------------------------
+
+    rag_database = load_faiss_database(documents='BioASQ_11B_test', embedding_model='OpenAI')
+    # rag_database = load_faiss_database(documents='MedRAG_133000', embedding_model='OpenAI')
 
     data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
                    'dataset/Task11BGoldenEnriched/11B2_golden.json',
@@ -101,24 +108,34 @@ if __name__ == '__main__':
 
     yesno_questions = data.get_type_questions('yesno')
 
-    matching_ratio = []
+    average_rouge, average_bleu = [], []
+    rouge = Rouge()
 
     for question in yesno_questions:
-        retrieved_docs = retrieval_model.similarity_search(question.question_body, k=len(question.docs))
+        retrieved_docs = rag_database.similarity_search(question.question_body, k=4)
 
         print(question.question_body)
 
-        print(question.docs)
+        rouge_list, bleu_list = [], []
 
-        count = 0
         for doc in retrieved_docs:
-            print(doc.metadata['url'])
-            if doc.metadata['url'] in question.docs:
-                count += 1
+            max_rouge_score, max_bleu_score = 0, 0
 
-        print(count / len(retrieved_docs))
+            for golden_ref in question.refs:
+                score = rouge.get_scores(doc.page_content, golden_ref['text'])
+                rouge_1_score = score[0]['rouge-1']['f']
+                max_rouge_score = max(rouge_1_score, max_rouge_score)
 
-        matching_ratio.append(count / len(retrieved_docs))
+                bleu_score = sentence_bleu(doc.page_content, golden_ref['text'])
+                max_bleu_score = max(bleu_score, max_bleu_score)
 
-    print("\nMatching Ratio (Retrieved URL's Percentage in Golden Refs:", np.mean(matching_ratio))
-    '''
+            rouge_list.append(max_rouge_score)
+            bleu_list.append(max_bleu_score)
+
+        print(rouge_list)
+        average_rouge.append(np.mean(rouge_list))
+        average_bleu.append(np.mean(bleu_list))
+
+    print("\nMean Average ROUGE-1 Score: ", np.mean(average_rouge))
+    print("\nMean Average BLEU Score: ", np.mean(average_bleu))
+
