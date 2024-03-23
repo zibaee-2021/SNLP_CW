@@ -96,6 +96,17 @@ if __name__ == '__main__':
                                               file_path_list=file_path_list,
                                               embedding_model='OpenAI')
     '''
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    BioASQ_test_golden_ref = {}
+
+    with open('refs/BioASQ_11B_test_yesno.json', 'r', encoding='UTF-8') as file:
+        data = json.load(file)
+
+        for record in data:
+            BioASQ_test_golden_ref[record.get("url")] = record.get("title")
+
     # ------------------------------------------------------------------------------------------------------------------
 
     rag_database = load_faiss_database(documents='BioASQ_11B_test', embedding_model='OpenAI')
@@ -108,7 +119,7 @@ if __name__ == '__main__':
 
     yesno_questions = data.get_type_questions('yesno')
 
-    average_rouge, average_bleu = [], []
+    average_rouge, average_bleu, accuracy_list = [], [], []
     rouge = Rouge()
 
     for question in yesno_questions:
@@ -118,10 +129,20 @@ if __name__ == '__main__':
 
         rouge_list, bleu_list = [], []
 
+        count = 0
+
         for doc in retrieved_docs:
             max_rouge_score, max_bleu_score = 0, 0
 
+            retrieved = False
+
             for golden_ref in question.refs:
+                if doc.metadata['title'] == BioASQ_test_golden_ref.get(golden_ref['document'], ''):
+                    retrieved = True
+
+                    print(doc.metadata['title'])
+                    print(BioASQ_test_golden_ref[golden_ref['document']])
+
                 score = rouge.get_scores(doc.page_content, golden_ref['text'])
                 rouge_1_score = score[0]['rouge-1']['f']
                 max_rouge_score = max(rouge_1_score, max_rouge_score)
@@ -130,12 +151,18 @@ if __name__ == '__main__':
                 max_bleu_score = max(bleu_score, max_bleu_score)
 
             rouge_list.append(max_rouge_score)
-            bleu_list.append(max_bleu_score)
+            # bleu_list.append(max_bleu_score)
+
+            if retrieved:
+                count += 1
 
         print(rouge_list)
         average_rouge.append(np.mean(rouge_list))
-        average_bleu.append(np.mean(bleu_list))
+        # average_bleu.append(np.mean(bleu_list))
+        accuracy_list.append(count / len(retrieved_docs))
 
     print("\nMean Average ROUGE-1 Score: ", np.mean(average_rouge))
-    print("\nMean Average BLEU Score: ", np.mean(average_bleu))
+    # print("\nMean Average BLEU Score: ", np.mean(average_bleu))
+
+    print("\nMean Document Retrieval Accuracy: ", np.mean(accuracy_list))
 
