@@ -19,6 +19,23 @@ os.environ["OPENAI_API_KEY"] = 'sk-CVyp2YzZZsnwdHshlK6tT3BlbkFJTHaaw6noyMUTie87x
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
+def get_consecutive_identical_words(sentence1, sentence2):
+    words1 = sentence1.split()
+    words2 = sentence2.split()
+
+    max_consecutive_identical = 0
+    consecutive_identical = 0
+
+    for word1, word2 in zip(words1, words2):
+        if word1 == word2:
+            consecutive_identical += 1
+            max_consecutive_identical = max(max_consecutive_identical, consecutive_identical)
+        else:
+            consecutive_identical = 0
+
+    return max_consecutive_identical
+
+
 def load_medrag_pubmed_json(json_path_list):
     docs = []
 
@@ -32,6 +49,23 @@ def load_medrag_pubmed_json(json_path_list):
                             "title": data.get("title")}
 
                 docs.append(Document(page_content=data.get('content'), metadata=metadata))
+
+    return docs
+
+
+def load_retrieved_json_docs(retrieved_json_path):
+    docs = []
+
+    # Load JSON file
+    with open(retrieved_json_path, encoding='UTF-8') as file:
+        data = json.load(file)
+
+        # Iterate through 'pages'
+        for record in data:
+            metadata = {"url": record.get("url"),
+                        "title": record.get("title")}
+
+            docs.append(Document(page_content=record.get('abstract'), metadata=metadata))
 
     return docs
 
@@ -80,6 +114,23 @@ def load_faiss_database(documents, embedding_model):
     return database
 
 
+def append_golden_faiss_databse(database, json_path, embedding_model):
+    # Load Document from File Path
+    # data = load_docs(documents, document_file_path)
+    docs = load_retrieved_json_docs(json_path)
+
+    # Split Documents using TokenTextSplitter to chunks
+    text_splitter = TokenTextSplitter(chunk_size=128, chunk_overlap=50)
+    chunks = text_splitter.split_documents(docs)
+
+    # Get the Embeddings Model
+    embeddings = get_embeddings(embedding_model)
+
+    database.afrom_documents(chunks, embeddings)
+
+    return database
+
+
 if __name__ == '__main__':
     '''
     file_path_list = []
@@ -109,8 +160,12 @@ if __name__ == '__main__':
 
     # ------------------------------------------------------------------------------------------------------------------
 
-    rag_database = load_faiss_database(documents='BioASQ_11B_test', embedding_model='OpenAI')
-    # rag_database = load_faiss_database(documents='MedRAG_133000', embedding_model='OpenAI')
+    rag_database = load_faiss_database(documents='MedRAG_133000', embedding_model='OpenAI')
+    rag_database_2 = load_faiss_database(documents='BioASQ_11B_test', embedding_model='OpenAI')
+    rag_database.merge_from(rag_database_2)
+
+    # rag_database = append_golden_faiss_databse(rag_database, json_path='refs/BioASQ_11B_test_yesno.json',
+    #                                            embedding_model='OpenAI')
 
     data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
                    'dataset/Task11BGoldenEnriched/11B2_golden.json',
@@ -125,10 +180,7 @@ if __name__ == '__main__':
     for question in yesno_questions:
         retrieved_docs = rag_database.similarity_search(question.question_body, k=4)
 
-        print(question.question_body)
-
         rouge_list, bleu_list = [], []
-
         count = 0
 
         for doc in retrieved_docs:
@@ -137,18 +189,23 @@ if __name__ == '__main__':
             retrieved = False
 
             for golden_ref in question.refs:
-                if doc.metadata['title'] == BioASQ_test_golden_ref.get(golden_ref['document'], ''):
-                    retrieved = True
-
-                    print(doc.metadata['title'])
-                    print(BioASQ_test_golden_ref[golden_ref['document']])
-
+                # Compute ROUGE-1 score
                 score = rouge.get_scores(doc.page_content, golden_ref['text'])
                 rouge_1_score = score[0]['rouge-1']['f']
                 max_rouge_score = max(rouge_1_score, max_rouge_score)
 
-                bleu_score = sentence_bleu(doc.page_content, golden_ref['text'])
-                max_bleu_score = max(bleu_score, max_bleu_score)
+                # bleu_score = sentence_bleu(doc.page_content, golden_ref['text'])
+                # max_bleu_score = max(bleu_score, max_bleu_score)
+
+                # Compare if title identical
+                title_retrieved = doc.metadata['title']
+                title_golden = BioASQ_test_golden_ref.get(golden_ref['document'], '')
+
+                if get_consecutive_identical_words(title_retrieved, title_golden) > 5:
+                    retrieved = True
+
+                    print(title_retrieved)
+                    print(title_golden)
 
             rouge_list.append(max_rouge_score)
             # bleu_list.append(max_bleu_score)
@@ -156,7 +213,6 @@ if __name__ == '__main__':
             if retrieved:
                 count += 1
 
-        print(rouge_list)
         average_rouge.append(np.mean(rouge_list))
         # average_bleu.append(np.mean(bleu_list))
         accuracy_list.append(count / len(retrieved_docs))
