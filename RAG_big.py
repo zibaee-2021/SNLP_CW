@@ -13,7 +13,7 @@ import pyspark.sql.functions as f
 from pyspark.sql.types import MapType, StringType
 from Datasets import BioASQ
 
-os.environ["OPENAI_API_KEY"] = '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'  # shahin
+os.environ["OPENAI_API_KEY"] = 'sk-xxx'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 open_ai = 'OpenAI'
