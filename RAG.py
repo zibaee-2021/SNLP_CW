@@ -11,7 +11,7 @@ import os
 
 from Datasets import BioASQ
 
-os.environ["OPENAI_API_KEY"] = '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'
+os.environ["OPENAI_API_KEY"] = 'sk-xxx'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
