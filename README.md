@@ -5,6 +5,18 @@
 
 Disclaimer: This project is created as part of the requirement for the COMP0087 module at the Department of Computer Science, University College London (UCL).
 
+```
+Abtsract from the accompanying paper: 
+Large Language Models (LLMs) have gained significant recognition and praise for their remarkable capabilities. 
+However, there remain doubts regarding the efficacy of LLMs in biomedical domains, in particular, 
+Biomedical Question-Answering (QA) in which accurate and efficient information retrieval is paramount for advancing 
+medical research and clinical practice. In this study, we propose a novel approach that leverages Retrieval-Augmented 
+Generation (RAG) techniques to enhance the capabilities of LLMs for biomedical QA objectives. 
+We constructed three retrieval databases of different scales or components and evaluated the performance of our 
+system using the BioASQ dataset. We illustrated that RAG could effectively boost the performance of LLMs in 
+question-answering by retrieving relevant information from extensive scientific text corpora while the cost of 
+constructing and maintaining such text corpora could be high.
+```
 
 ## Project Outline
 ![RAG-LLM-QA-Pipeline](RAG-LLM-QA-Pipeline.png)
@@ -40,7 +52,7 @@ Further indication on code files:
 1. `LLM.py`: Defines the two LLM model class and interface. 
 2. `Datasets.py`: Defines the class `Question` as a general interface of question contents and classes `BioASQ` and `QALM_mcq` for the two defined datasets. Further datasets could be included by following the interface of `Question`.
 3. `/scripts`: Some scripting files used for either testing or data gathering purposes. 
-
+---
 
 ## Acknowledgements
 
