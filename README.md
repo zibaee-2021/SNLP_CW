@@ -29,12 +29,12 @@ Disclaimer: This project is created as part of the requirement for the COMP0087 
 
 ## Usage
 To use the system, please follow these steps:
-1. Install the required dependencies: `pip install -r requirements.txt`
-2. Download a text corpus (e.g. MedRAG/pubmed) to directory `refs`
-3. Configure and Run `python RAG.py` to construct and save the FAISS database
-3. Download a dataset for System Evaluation to directory `dataset` or Configure `main.py` to single query answering
-4. Configure an LLM model in `main.py` with questions
-5. Run `python main.py` to evaluate the system's performance
+1. Install the required dependencies: `pip install -r requirements.txt`.
+2. Download a text corpus (e.g. MedRAG/pubmed) to directory `refs`.
+3. Configure and run `python RAG.py` to construct and save the FAISS database.
+3. Download a dataset for system evaluation to directory `dataset` or configure `main.py` to single query answering.
+4. Configure an LLM model in `main.py` with questions.
+5. Run `python main.py` to evaluate the system's performance.
 
 Further indication on code files:
 1. `LLM.py`: Defines the two LLM model class and interface. 
