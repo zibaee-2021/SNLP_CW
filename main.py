@@ -10,7 +10,7 @@ from LLM import Llama2, GPT
 from Datasets import QALM_mcq, BioASQ
 import RAG
 
-ENABLE_RAG = True
+ENABLE_RAG = False
 
 
 class PromptLibrary:
@@ -136,7 +136,7 @@ if __name__ == '__main__':
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             "docs": format_docs(docs),
+             # "docs": format_docs(docs),
              "format_instructions": format_instructions
              }
         )['text']

@@ -15,7 +15,7 @@ from Datasets import BioASQ
 
 # os.environ["OPENAI_API_KEY"] = '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'
 # os.environ["OPENAI_API_KEY"] = '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'
-os.environ["OPENAI_API_KEY"] = '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'
+# os.environ["OPENAI_API_KEY"] = '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'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
