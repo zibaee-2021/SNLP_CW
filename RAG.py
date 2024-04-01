@@ -132,7 +132,6 @@ def append_golden_faiss_databse(database, json_path, embedding_model):
 
 
 if __name__ == '__main__':
-    '''
     file_path_list = []
     for i in range(1, 11):
         file_path_list.append('refs/pubmed/chunk/pubmed23n{:04d}.jsonl'.format(i))
@@ -146,7 +145,6 @@ if __name__ == '__main__':
         retrieval_model = save_faiss_database(documents='BioASQ_11B_test',
                                               file_path_list=file_path_list,
                                               embedding_model='OpenAI')
-    '''
 
     # ------------------------------------------------------------------------------------------------------------------
 
