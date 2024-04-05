@@ -6,6 +6,7 @@ import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
 
+
 class Question:
     def __init__(self, question_body, answer, type, prompt, docs, refs):
         self.question_body = question_body
@@ -52,7 +53,7 @@ class BioASQ:
         type_questions = []
 
         for question in self.questions:
-            if question.type == q_type:
+            if question.type in q_type:
                 type_questions.append(question)
 
         return type_questions
@@ -61,7 +62,7 @@ class BioASQ:
         document_urls = []
 
         for question in self.questions:
-            if question.type == q_type:
+            if question.type in q_type:
                 for doc in question.docs:
                     if doc not in document_urls:
                         document_urls.append(doc)
@@ -85,6 +86,7 @@ class QALM_mcq:
                                                    docs=[],
                                                    refs=[]))
 
+
 async def extract_url(session, url):
     try:
         async with session.get(url) as response:
@@ -105,6 +107,7 @@ async def extract_url(session, url):
     except aiohttp.ServerDisconnectedError:
         return "Server Disconnected Error", ""
 
+
 async def extract_data(yesno_urls):
     docs = []
     async with aiohttp.ClientSession() as session:
@@ -116,12 +119,13 @@ async def extract_data(yesno_urls):
 
     return docs
 
-async def main(yesno_urls):
+
+async def main(yesno_urls, file_path):
     retrieved_docs = await extract_data(yesno_urls)
 
     print(len(retrieved_docs))
 
-    with open('refs/BioASQ_11B_test_yesno.json', 'w', encoding='utf-8') as output_file:
+    with open(file_path, 'w', encoding='utf-8') as output_file:
         json.dump(retrieved_docs, output_file, indent=4)
 
 
@@ -129,20 +133,30 @@ if __name__ == '__main__':
     # data = QALM_mcq(['dataset/QALM/test/mcq/bioasq_mcq_test.jsonl'])
     # print('Total QALM BioASQ mcq Questions:　', len(data.questions))
 
+    '''
     data = BioASQ(['dataset/Task11BGoldenEnriched/11B1_golden.json',
                    'dataset/Task11BGoldenEnriched/11B2_golden.json',
                    'dataset/Task11BGoldenEnriched/11B3_golden.json',
-                   'dataset/Task11BGoldenEnriched/11B4_golden.json'])
+                   'dataset/Task11BGoldenEnriched/11B4_golden.json'], if_test=True)
+    '''
 
-    print('Total BioASQ 11B Questions:　', len(data.questions))
+    data = BioASQ(['dataset/BioASQ-training11b/training11b.json'])
 
-    print('Total BioASQ 11B yesno Questions:　', len(data.get_type_questions('yesno')))
+    print(data.question_type)
 
-    print('Total BioASQ 11B yesno urls:　', len(data.get_document_urls('yesno')))
+    # print('Total BioASQ 11B Questions:　', len(data.questions))
 
-    print(data.questions[1].get_golden_refs(num=5))
+    # print('Total BioASQ 11B yesno Questions:　', len(data.get_type_questions('yesno')))
 
-    yesno_urls = data.get_document_urls('yesno')
+    # print('Total BioASQ 11B yesno urls:　', len(data.get_document_urls('yesno')))
+
+    # print(data.questions[1].get_golden_refs(num=5))
+
+    # yesno_urls = data.get_document_urls('yesno')
+
+    all_urls = data.get_document_urls(['factoid', 'list', 'yesno', 'summary'])
+
+    print(all_urls[10000])
 
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(main(yesno_urls))
+    asyncio.run(main(all_urls[10000:20000], file_path='refs/BioASQ_11B_train_yesno_2.json'))

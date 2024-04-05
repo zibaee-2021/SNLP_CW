@@ -10,7 +10,8 @@ from LLM import Llama2, GPT
 from Datasets import QALM_mcq, BioASQ
 import RAG
 
-ENABLE_RAG = True
+ENABLE_RAG = False
+
 
 class PromptLibrary:
     def __init__(self, prompt_template_csv_file):
@@ -93,12 +94,9 @@ if __name__ == '__main__':
         if args.load_db:
             rag_database = RAG.load_faiss_database(documents='BioASQ_11B_test',
                                                    embedding_model='OpenAI')
-
-            # rag_database = RAG.load_faiss_database(documents='PubMed_2023',
-            #                                        embedding_model='OpenAI')
         else:
             rag_database = RAG.save_faiss_database(documents='BioASQ_11B_test',
-                                                   document_file_path='refs/retrieved_BioASQ_ruyi.json',
+                                                   file_path_list=['refs/BioASQ_11B_train_yesno_1.json'],
                                                    embedding_model='OpenAI')
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -130,7 +128,7 @@ if __name__ == '__main__':
             # Golden References
             # docs = question.get_golden_refs(num=10000)
             # Retrieved Documents
-            docs = rag_database.similarity_search(question.question_body, k=10)
+            docs = rag_database.similarity_search(question.question_body, k=8)
             print('Retrieved Documents: ', format_docs(docs))
 
         chain = LLMChain(llm=model, prompt=prompt_template, output_parser=output_parser)
@@ -138,7 +136,7 @@ if __name__ == '__main__':
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             "docs": format_docs(docs),
+             # "docs": format_docs(docs),
              "format_instructions": format_instructions
              }
         )['text']

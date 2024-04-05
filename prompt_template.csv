@@ -1,4 +1,5 @@
 Dataset,Question_Type,RAG,prompt_template,Model,Accuracy
+BioASQ,yesno,None,"""{prompt}.\n{format_instructions}.\n{question}""",OpenAI,
 BioASQ,yesno,PubMed_2023_OpenAI,"""{prompt} referencing the following context if necessary: {docs}.\n{format_instructions}.\n{question}""",OpenAI,74.4%
 BioASQ,yesno,BioASQ_11B_OpenAI,"""{prompt} referencing the following context if necessary: {docs}.\n{format_instructions}.\n{question}""",OpenAI,89.5%
 BioASQ,yesno,None,"""{prompt} in clinical context.\n{format_instructions}.\n{question}""",OpenAI,80.2%
