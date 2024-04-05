@@ -5,12 +5,15 @@ from langchain.chains import LLMChain
 from tqdm import tqdm
 import argparse
 import csv
+import os
+
+os.environ["OPENAI_API_KEY"] = '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'
 
 from LLM import Llama2, GPT
 from Datasets import QALM_mcq, BioASQ
 import RAG
 
-ENABLE_RAG = False
+ENABLE_RAG = True
 
 
 class PromptLibrary:
@@ -126,17 +129,17 @@ if __name__ == '__main__':
 
         if ENABLE_RAG:
             # Golden References
-            # docs = question.get_golden_refs(num=10000)
+            docs = question.get_golden_refs(num=4)
             # Retrieved Documents
-            docs = rag_database.similarity_search(question.question_body, k=8)
-            print('Retrieved Documents: ', format_docs(docs))
+            # docs = format_docs(rag_database.similarity_search(question.question_body, k=4))
+            print('Fed Documents: ', docs)
 
         chain = LLMChain(llm=model, prompt=prompt_template, output_parser=output_parser)
 
         output = chain.invoke(
             {"question": question.question_body,
              "prompt": question.prompt,
-             # "docs": format_docs(docs),
+             "docs": docs,
              "format_instructions": format_instructions
              }
         )['text']
