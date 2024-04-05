@@ -10,10 +10,12 @@ from LLM import Llama2, GPT
 from Datasets import QALM_mcq, BioASQ
 import RAG
 
+# Flag to enable to load database from RAG
+ENABLE_RAG = True
 # Flag to use Golden, Random, RAG, and random sort
 golden_use = True
-random_use = False
-rag_use = True
+random_use = True
+rag_use = False
 random_sort = False
 
 # Class to manage prompt templates
@@ -102,8 +104,8 @@ if __name__ == '__main__':
     prompt_lib = PromptLibrary('prompt_template.csv')
     prompt_template = prompt_lib.get_prompt_template(dataset=args.dataset, question_type=args.question_type)
 
-    # When RAG is used
-    if rag_use:
+    # Enable to load database from RAG
+    if ENABLE_RAG:
         if args.load_db:
             # Import the constructed database
             # Golden_679 case
@@ -160,8 +162,8 @@ if __name__ == '__main__':
 
         # Initialize docs list
         docs = []
-        # Values for G : R : K, here we use G(4) : R(4) : K(4) as example
-        G, R, K = 4, 4, 4
+        # Values for G : R : K, here we use G(4) : R(96) : K(0) as example
+        G, R, K = 4, 96, 0
 
         # If Golden is used
         if golden_use:
@@ -169,15 +171,15 @@ if __name__ == '__main__':
             golden_docs = question.get_golden_refs(num=G) if not isinstance(docs, str) else [docs]
             # Split each chunks
             golden_paragraphs = golden_docs.split("\n")
-            # print("Golden:", golden_docs)
+            print("Golden:", golden_docs)
             if isinstance(docs, str):
                 docs = [docs]
             # Store it into one dimensional list
             golden_list = list(filter(lambda x: x.strip(), golden_paragraphs))
-            # print("Golden List:", golden_list)
+            print("Golden List:", golden_list)
             # Add it into docs
             docs.append(golden_list)
-            # print("Docs with golden", docs)
+            print("Docs with golden", docs)
 
         # If Random is used
         if random_use:
