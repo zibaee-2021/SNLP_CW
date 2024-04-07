@@ -13,7 +13,6 @@ from Datasets import BioASQ
 
 # OpenAI key
 # os.environ["OPENAI_API_KEY"] = 'sk-xxx'
-os.environ["OPENAI_API_KEY"] = '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'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Function to calculate the maximum number of consecutive identical words between two sentences
