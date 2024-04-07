@@ -13,10 +13,10 @@ import RAG
 # Flag to enable to load database from RAG
 ENABLE_RAG = True
 # Flag to use Golden, Random, RAG, and random sort
-golden_use = True
-random_use = True
-rag_use = False
-random_sort = False
+golden_use = False # Can change it into True if golden is used
+random_use = True # Can change it into False if random is not used
+rag_use = True # Can change it into False if rag is not used
+random_sort = False # Can change it into True if want to random shuffle the input order
 
 # Class to manage prompt templates
 class PromptLibrary:
@@ -129,8 +129,13 @@ if __name__ == '__main__':
 
             # MedRAG_133000 case
             # rag_database = RAG.save_faiss_database(documents='MedRAG_133000',
-                                                    # file_path_list=['refs/BioASQ_11B_train_yesno_1.json'],
-                                                    # embedding_model='OpenAI')
+                                                   # file_path_list=['refs/BioASQ_11B_train_yesno_1.json'],
+                                                   # embedding_model='OpenAI')
+
+            # Merged_133679 case
+            # rag_database = RAG.save_faiss_database(documents='Merged_133679',
+                                                   # file_path_list=['refs/BioASQ_11B_train_yesno_1.json'],
+                                                   # embedding_model='OpenAI')
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -151,9 +156,9 @@ if __name__ == '__main__':
 
     # Go through the questions in the dataframe
     for question in tqdm(questions):
-        #import time
-        #time_between_calls = 10 #seconds
-        #time.sleep(time_between_calls)
+        # import time
+        # time_between_calls = 10 #seconds
+        # time.sleep(time_between_calls)
         print('-------------------------------------------------------------------------------------------------------')
 
         print(f'{question.prompt} {question.question_body}')
@@ -162,8 +167,8 @@ if __name__ == '__main__':
 
         # Initialize docs list
         docs = []
-        # Values for G : R : K, here we use G(4) : R(96) : K(0) as example
-        G, R, K = 4, 96, 0
+        # Values for G : R : K, here we use G(0) : R(96) : K(4) as example
+        G, R, K = 0, 96, 4
 
         # If Golden is used
         if golden_use:
@@ -171,15 +176,15 @@ if __name__ == '__main__':
             golden_docs = question.get_golden_refs(num=G) if not isinstance(docs, str) else [docs]
             # Split each chunks
             golden_paragraphs = golden_docs.split("\n")
-            print("Golden:", golden_docs)
+            # print("Golden:", golden_docs)
             if isinstance(docs, str):
                 docs = [docs]
             # Store it into one dimensional list
             golden_list = list(filter(lambda x: x.strip(), golden_paragraphs))
-            print("Golden List:", golden_list)
+            # print("Golden List:", golden_list)
             # Add it into docs
             docs.append(golden_list)
-            print("Docs with golden", docs)
+            # print("Docs with golden", docs)
 
         # If Random is used
         if random_use:

@@ -11,6 +11,7 @@ from Datasets import BioASQ
 
 # OpenAI key
 os.environ["OPENAI_API_KEY"] = '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'
+#os.environ["OPENAI_API_KEY"] = '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'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Function to load PubMed JSON documents and convert them into Document objects
