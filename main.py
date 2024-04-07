@@ -189,7 +189,7 @@ if __name__ == '__main__':
         # If Random is used
         if random_use:
             # Load document obtained by random_retrieve.py
-            output_file = "abstract_chunks.txt"
+            output_file = "abstract_chunks_pubmed.txt"
             with open(output_file, 'r', encoding='utf-8') as f:
                 abstract_chunks = f.readlines()
             # Load all chunks
